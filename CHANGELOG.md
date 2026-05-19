@@ -16,7 +16,7 @@
 - 新增 `_ocr_images` 方法：批量 OCR 识别（最多3张图片）
 - 新增 `_call_llm_ocr` 方法：调用 LLM 视觉模型，支持三级降级策略
 - 新增 `ocr_enabled` 配置开关（默认关闭，需配置视觉LLM）
-- 新增 `ocr_provider_id` 配置：可选择专用的视觉 LLM Provider
+- 新增 `ocr_provider_id` 配置：**必须手动选择**视觉 LLM Provider，未配置则 OCR 功能不生效
 - **内置3种OCR提示词模板**：
   - `default`（通用识别）：识别图片内容并转录文字，标注广告/违规内容
   - `strict`（严格审核）：重点检查广告、色情、政治、暴恐、赌博等违规内容

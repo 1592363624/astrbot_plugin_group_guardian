@@ -200,7 +200,7 @@ git clone https://github.com/zcj-ui/astrbot_plugin_group_guardian.git
 | `moderation_llm_provider_id` | 审核专用LLM Provider ID | 默认     |
 | `scan_forward_msg`           | 合并转发消息审核开关          | `true` |
 | `ocr_enabled`                | OCR识图审核开关           | `false` |
-| `ocr_provider_id`            | OCR视觉LLM Provider   | 自动选择   |
+| `ocr_provider_id`            | OCR视觉LLM Provider（必填） | 空(未配置则不生效) |
 | `ocr_prompt_template`        | OCR提示词模板            | `default` |
 | `ocr_custom_system_prompt`   | OCR自定义系统提示词         | 空      |
 | `ocr_custom_user_prompt`     | OCR自定义用户提示词         | 空      |
