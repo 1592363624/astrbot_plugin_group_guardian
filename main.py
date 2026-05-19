@@ -2712,6 +2712,10 @@ class Main(Star):
                         return True
                     if seg_cls == 'Image' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'image'):
                         return True
+                    if seg_cls == 'Json' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
+                        return True
+                    if seg_cls == 'App' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
+                        return True
             return False
         return True
 
@@ -2781,86 +2785,118 @@ class Main(Star):
 
     async def _check_qq_favorite(self, event: AiocqhttpMessageEvent) -> bool:
         client = await self._get_client(event)
-        if not client:
-            return False
         raw = getattr(event, 'raw_event', None)
+        chain = event.get_messages() or []
+
         if isinstance(raw, dict):
             msg_list = raw.get('message', [])
             if isinstance(msg_list, list):
                 for seg in msg_list:
                     if not isinstance(seg, dict):
                         continue
-                    if seg.get('type') == 'forward':
-                        fid = seg.get('data', {}).get('res_id', '') or seg.get('data', {}).get('id', '')
-                        if fid:
+                    seg_type = seg.get('type', '')
+                    seg_data = seg.get('data', {}) or {}
+
+                    if seg_type == 'forward':
+                        fid = seg_data.get('res_id', '') or seg_data.get('id', '')
+                        if fid and client:
                             try:
                                 result = await client.call_action('get_forward_msg', message_id=fid)
-                                if not isinstance(result, dict):
-                                    continue
-                                messages = result.get('messages', []) or result.get('message', [])
-                                if isinstance(messages, dict):
-                                    messages = messages.get('message', [])
-                                for msg in messages:
-                                    if not isinstance(msg, dict):
-                                        continue
-                                    sender = msg.get('sender', {})
-                                    if isinstance(sender, dict):
-                                        nickname = sender.get('nickname', '') or ''
-                                        card = sender.get('card', '') or ''
-                                        if 'QQ收藏' in nickname or 'QQ收藏' in card or 'qq收藏' in nickname.lower() or 'qq收藏' in card.lower():
+                                if isinstance(result, dict):
+                                    messages = result.get('messages', []) or result.get('message', [])
+                                    if isinstance(messages, dict):
+                                        messages = messages.get('message', [])
+                                    for msg in messages:
+                                        if not isinstance(msg, dict):
+                                            continue
+                                        sender = msg.get('sender', {})
+                                        if isinstance(sender, dict):
+                                            nickname = sender.get('nickname', '') or ''
+                                            card = sender.get('card', '') or ''
+                                            if 'QQ收藏' in nickname or 'QQ收藏' in card or 'qq收藏' in nickname.lower() or 'qq收藏' in card.lower():
+                                                return True
+                                        content = msg.get('message', '')
+                                        if isinstance(content, list):
+                                            for c_seg in content:
+                                                if not isinstance(c_seg, dict):
+                                                    continue
+                                                if c_seg.get('type') == 'app':
+                                                    app_content = c_seg.get('data', {}).get('content', '')
+                                                    if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                                                        return True
+                                        elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
                                             return True
-                                    content = msg.get('message', '')
-                                    if isinstance(content, list):
-                                        for c_seg in content:
-                                            if not isinstance(c_seg, dict):
-                                                continue
-                                            if c_seg.get('type') == 'app':
-                                                app_content = c_seg.get('data', {}).get('content', '')
-                                                if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
-                                                    return True
-                                    elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
-                                        return True
                             except Exception as e:
-                                logger.debug(f"[GroupMgr] 检查QQ收藏失败: {e}")
-                    elif seg.get('type') == 'app':
-                        app_content = seg.get('data', {}).get('content', '')
+                                logger.debug(f"[GroupMgr] 检查转发QQ收藏失败: {e}")
+
+                    elif seg_type == 'json':
+                        json_content = seg_data.get('data', '')
+                        if isinstance(json_content, str) and ('QQ收藏' in json_content or 'qq收藏' in json_content.lower() or 'sharechain.qq.com' in json_content):
+                            logger.info(f"[GroupMgr] 检测到JSON卡片中的QQ收藏内容")
+                            return True
+
+                    elif seg_type == 'app':
+                        app_content = seg_data.get('content', '')
                         if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
                             return True
-        chain = event.get_messages() or []
+
         for seg in chain:
-            if isinstance(seg, dict) and seg.get('type') == 'forward':
-                fid = seg.get('data', {}).get('id', '')
-                if not fid:
+            if isinstance(seg, dict):
+                continue
+            seg_cls = type(seg).__name__
+
+            if seg_cls == 'Json' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
+                json_data = getattr(seg, 'data', '') or ''
+                if isinstance(json_data, str) and ('QQ收藏' in json_data or 'qq收藏' in json_data.lower() or 'sharechain.qq.com' in json_data):
+                    logger.info(f"[GroupMgr] 检测到Json对象中的QQ收藏内容")
+                    return True
+                if isinstance(json_data, dict):
+                    json_str = str(json_data)
+                    if 'QQ收藏' in json_str or 'qq收藏' in json_str.lower() or 'sharechain.qq.com' in json_str:
+                        logger.info(f"[GroupMgr] 检测到Json对象(dict)中的QQ收藏内容")
+                        return True
+
+            elif seg_cls == 'Forward' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
+                if not client:
                     continue
-                try:
-                    result = await client.call_action('get_forward_msg', message_id=fid)
-                    if not isinstance(result, dict):
-                        continue
-                    messages = result.get('messages', []) or result.get('message', [])
-                    if isinstance(messages, dict):
-                        messages = messages.get('message', [])
-                    for msg in messages:
-                        if not isinstance(msg, dict):
-                            continue
-                        sender = msg.get('sender', {})
-                        if isinstance(sender, dict):
-                            nickname = sender.get('nickname', '') or ''
-                            card = sender.get('card', '') or ''
-                            if 'QQ收藏' in nickname or 'QQ收藏' in card or 'qq收藏' in nickname.lower() or 'qq收藏' in card.lower():
-                                return True
-                        content = msg.get('message', '')
-                        if isinstance(content, list):
-                            for c_seg in content:
-                                if not isinstance(c_seg, dict):
+                fid = getattr(seg, 'id', '') or ''
+                if not fid and hasattr(seg, 'data') and isinstance(getattr(seg, 'data', None), dict):
+                    fid = getattr(seg, 'data', {}).get('id', '')
+                if fid:
+                    try:
+                        result = await client.call_action('get_forward_msg', message_id=fid)
+                        if isinstance(result, dict):
+                            messages = result.get('messages', []) or result.get('message', [])
+                            if isinstance(messages, dict):
+                                messages = messages.get('message', [])
+                            for msg in messages:
+                                if not isinstance(msg, dict):
                                     continue
-                                if c_seg.get('type') == 'app':
-                                    app_content = c_seg.get('data', {}).get('content', '')
-                                    if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                                sender = msg.get('sender', {})
+                                if isinstance(sender, dict):
+                                    nickname = sender.get('nickname', '') or ''
+                                    card = sender.get('card', '') or ''
+                                    if 'QQ收藏' in nickname or 'QQ收藏' in card:
                                         return True
-                        elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
-                            return True
-                except Exception as e:
-                    logger.debug(f"[GroupMgr] 检查QQ收藏失败: {e}")
+                                content = msg.get('message', '')
+                                if isinstance(content, list):
+                                    for c_seg in content:
+                                        if not isinstance(c_seg, dict):
+                                            continue
+                                        if c_seg.get('type') == 'app':
+                                            app_content = c_seg.get('data', {}).get('content', '')
+                                            if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                                                return True
+                                elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
+                                    return True
+                    except Exception as e:
+                        logger.debug(f"[GroupMgr] 检查对象转发QQ收藏失败: {e}")
+
+            elif seg_cls == 'App' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
+                app_content = getattr(seg, 'content', '') or ''
+                if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                    return True
+
         return False
 
     _OCR_PROMPT_TEMPLATES = {
@@ -2979,40 +3015,20 @@ class Main(Star):
                     logger.warning(f"[GroupMgr] 黑名单执行出错: {e}")
                 return
         if self._cfg("recall_qq_favorite_enabled", True):
-            raw = getattr(event, 'raw_event', None)
-            has_forward = False
-            if isinstance(raw, dict):
-                msg_list = raw.get('message', [])
-                if isinstance(msg_list, list):
-                    for seg in msg_list:
-                        if isinstance(seg, dict) and seg.get('type') == 'forward':
-                            has_forward = True
-                            break
-            if not has_forward:
-                chain_check = event.get_messages() or []
-                for seg in chain_check:
-                    if isinstance(seg, dict) and seg.get('type') == 'forward':
-                        has_forward = True
-                        break
-                    seg_cls = type(seg).__name__
-                    if seg_cls == 'Forward' or (hasattr(seg, 'type') and seg.type == 'forward'):
-                        has_forward = True
-                        break
-            if has_forward:
-                is_qq_favorite = await self._check_qq_favorite(event)
-                if is_qq_favorite:
-                    try:
-                        msg_id = str(getattr(getattr(event, 'message_obj', None), 'message_id', ''))
-                        if msg_id:
-                            await self._recall_msg(event, msg_id)
-                            user_name = event.get_sender_name()
-                            user_id = self._try_get_sender_id(event)
-                            yield event.plain_result(f"[群管] 检测到QQ收藏内容，已自动撤回")
-                            self._log_moderation(group_id, user_id, user_name, "[QQ收藏消息]", "撤回", "QQ收藏内容自动撤回")
-                            event.stop_event()
-                    except Exception as e:
-                        logger.warning(f"[GroupMgr] QQ收藏撤回失败: {e}")
-                    return
+            is_qq_fav = await self._check_qq_favorite(event)
+            if is_qq_fav:
+                try:
+                    msg_id = str(getattr(getattr(event, 'message_obj', None), 'message_id', ''))
+                    if msg_id:
+                        await self._recall_msg(event, msg_id)
+                        user_name = event.get_sender_name()
+                        user_id = self._try_get_sender_id(event)
+                        yield event.plain_result(f"[群管] 检测到QQ收藏内容，已自动撤回")
+                        self._log_moderation(group_id, user_id, user_name, "[QQ收藏消息]", "撤回", "QQ收藏内容自动撤回")
+                        event.stop_event()
+                except Exception as e:
+                    logger.warning(f"[GroupMgr] QQ收藏撤回失败: {e}")
+                return
         if not self.auto_moderate_enabled:
             return
         chain = event.get_messages()
