@@ -2696,15 +2696,22 @@ class Main(Star):
                 return False
             chain = event.get_messages()
             for seg in (chain or []):
-                if not isinstance(seg, dict):
-                    return True
-                seg_type = seg.get('type', '')
-                if seg_type == 'text' and seg.get('data', {}).get('text', '').strip():
-                    return True
-                if seg_type == 'forward':
-                    return True
-                if seg_type == 'image':
-                    return True
+                if isinstance(seg, dict):
+                    seg_type = seg.get('type', '')
+                    if seg_type == 'text' and seg.get('data', {}).get('text', '').strip():
+                        return True
+                    if seg_type == 'forward':
+                        return True
+                    if seg_type == 'image':
+                        return True
+                else:
+                    seg_cls = type(seg).__name__
+                    if seg_cls == 'Plain' and getattr(seg, 'text', '').strip():
+                        return True
+                    if seg_cls == 'Forward' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
+                        return True
+                    if seg_cls == 'Image' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'image'):
+                        return True
             return False
         return True
 
@@ -2719,6 +2726,16 @@ class Main(Star):
                 fid = seg.get('data', {}).get('id', '')
                 if fid:
                     forward_ids.append(fid)
+            else:
+                seg_cls = type(seg).__name__
+                if seg_cls == 'Forward' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
+                    fid = ''
+                    if hasattr(seg, 'id'):
+                        fid = getattr(seg, 'id', '')
+                    elif hasattr(seg, 'data') and isinstance(getattr(seg, 'data', None), dict):
+                        fid = getattr(seg, 'data', {}).get('id', '')
+                    if fid:
+                        forward_ids.append(fid)
         if not forward_ids:
             return ""
         all_texts = []
@@ -2977,6 +2994,10 @@ class Main(Star):
                     if isinstance(seg, dict) and seg.get('type') == 'forward':
                         has_forward = True
                         break
+                    seg_cls = type(seg).__name__
+                    if seg_cls == 'Forward' or (hasattr(seg, 'type') and seg.type == 'forward'):
+                        has_forward = True
+                        break
             if has_forward:
                 is_qq_favorite = await self._check_qq_favorite(event)
                 if is_qq_favorite:
@@ -3010,7 +3031,21 @@ class Main(Star):
                     if img_url:
                         image_urls.append(img_url)
             else:
-                raw_text_parts.append(getattr(seg, 'text', '') or '')
+                seg_cls = type(seg).__name__
+                if seg_cls == 'Plain' or hasattr(seg, 'text'):
+                    raw_text_parts.append(getattr(seg, 'text', '') or '')
+                elif seg_cls == 'Forward' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
+                    has_forward = True
+                elif seg_cls == 'Image' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'image'):
+                    img_url = getattr(seg, 'url', '') or getattr(seg, 'file', '') or ''
+                    if not img_url and hasattr(seg, 'data'):
+                        seg_data = getattr(seg, 'data', {})
+                        if isinstance(seg_data, dict):
+                            img_url = seg_data.get('url', '') or seg_data.get('file', '')
+                    if img_url:
+                        image_urls.append(img_url)
+                    else:
+                        logger.debug(f"[GroupMgr] Image段无URL: {seg}")
         text = ''.join(raw_text_parts).strip()
 
         if has_forward and self._cfg("scan_forward_msg", True):
@@ -3022,14 +3057,20 @@ class Main(Star):
                     text = forward_text
 
         if image_urls and self._cfg("ocr_enabled", False):
+            logger.info(f"[GroupMgr] OCR开始识别 {len(image_urls)} 张图片")
             ocr_text = await self._ocr_images(event, image_urls)
             if ocr_text:
                 if text:
                     text = text + '\n[OCR识图内容]\n' + ocr_text
                 else:
                     text = '[OCR识图内容]\n' + ocr_text
+                logger.info(f"[GroupMgr] OCR识别结果: {ocr_text[:100]}")
+            else:
+                logger.warning(f"[GroupMgr] OCR识别返回空结果")
 
         if not text:
+            if image_urls:
+                logger.debug(f"[GroupMgr] 图片消息无文字且OCR未生效，跳过审核")
             return
         group_id = self._get_group_id(event)
         user_id = self._try_get_sender_id(event)
