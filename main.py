@@ -217,6 +217,7 @@ class Main(Star):
         stats = {
             "plugin_name": _PLUGIN_NAME,
             "version": "v1.9.6",
+            "disclaimer_agreed": self.config.get("disclaimer_agreed", False),
             "auto_moderate_enabled": self.auto_moderate_enabled,
             "group_white_list_count": len(self.group_white_list),
             "group_black_list_count": len(self.group_black_list),
@@ -700,6 +701,8 @@ class Main(Star):
     def _cfg_check(self, key: str, name: str) -> Tuple[bool, str]:
         if not self._cfg("enabled"):
             return False, "插件已禁用，所有功能不可用"
+        if not self.config.get("disclaimer_agreed", False):
+            return False, "您暂未阅读并同意免责声明，请在插件设置中阅读并同意免责声明后使用"
         if not self._cfg(key):
             return False, f"{name}功能已在配置中禁用"
         return True, ""
@@ -2494,6 +2497,8 @@ class Main(Star):
         if not self._should_scan_message(event):
             return
         if not self._cfg("enabled"):
+            return
+        if not self.config.get("disclaimer_agreed", False):
             return
         if await self._is_admin(event):
             return

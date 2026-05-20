@@ -1,4 +1,10 @@
 {
+    "disclaimer_agreed": {
+        "description": "我已阅读并同意免责声明",
+        "type": "bool",
+        "default": false,
+        "hint": "使用本插件前必须阅读并同意免责声明，请点击阅读后勾选此项。免责声明地址：https://mianzeshengming.edgeone.app"
+    },
     "enabled": {
         "description": "插件总开关",
         "type": "bool",

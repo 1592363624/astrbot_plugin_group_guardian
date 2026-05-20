@@ -2,6 +2,15 @@
 
 ## [1.9.6] - 2026-05-20
 
+### 免责声明机制
+
+- **新增免责声明同意机制**：使用插件前必须阅读并同意免责声明，未同意时所有功能（审核、群管、LLM工具等）不可用
+- **WebUI 免责声明卡片**：设置页顶部新增免责声明区域，包含阅读链接（跳转 mianzeshengming.edgeone.app）和同意开关
+- **总览面板警告横幅**：免责声明未同意时，总览页顶部显示橙色警告横幅，点击可跳转至设置页
+- **`_cfg_check` 拦截**：LLM 工具调用时检查免责声明状态，未同意返回提示信息
+- **`_handle_message` 拦截**：自动审核流程检查免责声明状态，未同意时静默跳过
+- **配置项 `disclaimer_agreed`**：新增布尔配置项，默认 `false`，同意后自动持久化
+
 ### 安全修复
 
 - **`_write_logs_sync` UnboundLocalError 修复**：`tempfile.mkstemp` 抛异常时 `tmp_path` 未赋值，`except` 块中 `os.path.exists(tmp_path)` 触发 `UnboundLocalError` 掩盖原始异常；现初始化 `tmp_path = None` 并在清理前检查

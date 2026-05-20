@@ -260,6 +260,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
             刷新
           </button>
         </div>
+        <div id="disclaimerBanner" style="display:none;margin-bottom:14px;padding:14px 18px;background:#fff3e0;border:1px solid #ff9800;border-radius:8px;font-size:13px;line-height:1.7;color:#e65100">
+          <strong>免责声明未同意</strong> — 您暂未阅读并同意免责声明，插件所有功能暂不可用。请前往 <a href="javascript:void(0)" id="goSettingsFromBanner" style="color:#1565c0;text-decoration:underline;font-weight:500">插件设置</a> 阅读并同意免责声明后使用。
+        </div>
         <div class="stats-row" id="statsRow">
           <div class="stat-card stat-primary">
             <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
@@ -346,6 +349,22 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 
       <div class="tab-panel" id="tab-settings">
         <div class="page-header"><h1>设置</h1><button class="btn btn-primary btn-sm" id="btnSaveSettings">保存更改</button></div>
+        <div class="card card-full" id="disclaimerCard" style="margin-bottom:14px;border:2px solid var(--warning)">
+          <div class="card-header" style="background:var(--warning-light)"><h2 style="color:var(--warning)">免责声明</h2></div>
+          <div class="settings-list">
+            <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:10px">
+              <div style="font-size:13px;line-height:1.7">使用本插件前，您必须阅读并同意免责声明。未同意前，插件的所有功能（审核、群管、LLM工具等）将不会生效。</div>
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <a href="https://mianzeshengming.edgeone.app" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-size:13px;text-decoration:underline;font-weight:500">阅读免责声明</a>
+                <label class="toggle" style="margin-left:8px">
+                  <input type="checkbox" data-key="disclaimer_agreed" id="disclaimerAgreed" />
+                  <span class="slider"></span>
+                </label>
+                <span style="font-size:12px;color:var(--text-muted)" id="disclaimerLabel">我已阅读并同意免责声明</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="settings-grid">
           <div class="card"><div class="card-header"><h2>核心设置</h2></div><div class="settings-list" id="settingsCore"></div></div>
           <div class="card"><div class="card-header"><h2>审核设置</h2></div><div class="settings-list" id="settingsAudit"></div></div>
@@ -476,6 +495,8 @@ async function loadOverview() {
     $('#statAdminCount').textContent = d.admin_list_count != null ? d.admin_list_count : '--';
     $('#statTotalLogs').textContent = d.total_logs != null ? d.total_logs : '--';
     $('#logoVer').textContent = d.version || 'v1.8.2';
+    var banner = $('#disclaimerBanner');
+    if (banner) banner.style.display = d.disclaimer_agreed ? 'none' : 'block';
   }
   if (todayRes && todayRes.status !== 'error') {
     renderRanking('groupRanking', todayRes.group_ranking, function(item) {
@@ -768,6 +789,15 @@ async function loadSettings() {
   var res = await safeGet('config');
   if (res && res.status === 'error') { toast('加载设置失败', 'error'); return; }
   CONFIG = Object.assign({}, CONFIG, res);
+  var agreed = CONFIG.disclaimer_agreed ? true : false;
+  var cb = $('#disclaimerAgreed');
+  if (cb) cb.checked = agreed;
+  var card = $('#disclaimerCard');
+  var label = $('#disclaimerLabel');
+  if (card) card.style.borderColor = agreed ? 'var(--success)' : 'var(--warning)';
+  if (card) card.querySelector('.card-header').style.background = agreed ? 'var(--success-light)' : 'var(--warning-light)';
+  if (card) card.querySelector('.card-header h2').style.color = agreed ? 'var(--success)' : 'var(--warning)';
+  if (label) label.textContent = agreed ? '已同意免责声明' : '我已阅读并同意免责声明';
   renderToggles('settingsCore', CORE_TOGGLES);
   renderToggles('settingsAudit', AUDIT_TOGGLES);
   renderToggles('settingsOcr', OCR_TOGGLES);
@@ -950,6 +980,10 @@ function init() {
   $('#btnRefreshLogs').addEventListener('click', loadLogs);
   $('#btnSaveSettings').addEventListener('click', saveSettings);
   $('#btnModalClose').addEventListener('click', closeModal);
+  $('#goSettingsFromBanner').addEventListener('click', function() {
+    var settingsTab = document.querySelector('.nav-item[data-tab="settings"]');
+    if (settingsTab) settingsTab.click();
+  });
   $('#modalOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
 
   $('#btnBackGroups').addEventListener('click', function() {
