@@ -5,13 +5,13 @@ import re
 import time
 import asyncio
 import struct
+import tempfile
 from collections import deque
 from datetime import datetime
 from typing import Optional, Tuple, Dict, List
 
 from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
-
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api.message_components import Reply, Image
 from astrbot.core.config.astrbot_config import AstrBotConfig
@@ -23,12 +23,12 @@ except ImportError:
     jsonify = None
     quart_request = None
 
-_PLUGIN_NAME = "astrbot_plugin_group_guardian"
-
 from .patterns import _POLITICAL_WHITELIST, SWEAR_PATTERNS, AD_PATTERNS
 
+_PLUGIN_NAME = "astrbot_plugin_group_guardian"
 
-@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.5", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
+
+@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.6", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
 class Main(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
@@ -128,14 +128,13 @@ class Main(Star):
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(None, self._write_logs_sync, p, data)
             except RuntimeError:
-                self._write_logs_sync(p, data)
+                logger.warning("[GroupMgr] 无事件循环，跳过日志写入（将在下次可用时保存）")
             self._last_log_save = time.time()
         except Exception:
             logger.exception("save_logs failed")
 
     @staticmethod
     def _write_logs_sync(path: str, data: list) -> None:
-        import tempfile
         dir_name = os.path.dirname(path)
         try:
             fd, tmp_path = tempfile.mkstemp(suffix='.json', dir=dir_name)
@@ -147,128 +146,49 @@ class Main(Star):
                 os.unlink(tmp_path)
             raise
 
+    @staticmethod
+    def _check_quart_available():
+        if quart_request is None or jsonify is None:
+            raise RuntimeError("Web框架(Quart)不可用，请检查AstrBot版本")
+
+    def _wrap_web_handler(self, handler):
+        async def _wrapped(*args, **kwargs):
+            self._check_quart_available()
+            return await handler(*args, **kwargs)
+        _wrapped.__name__ = handler.__name__
+        return _wrapped
+
     def _register_web_apis(self):
         try:
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/stats",
-                self._web_stats,
-                ["GET"],
-                "获取群管统计信息"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/config",
-                self._web_get_config,
-                ["GET"],
-                "获取当前配置"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/config",
-                self._web_update_config,
-                ["POST"],
-                "更新配置"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/providers",
-                self._web_get_providers,
-                ["GET"],
-                "获取可用LLM Provider列表"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/lexicon",
-                self._web_get_lexicon,
-                ["GET"],
-                "获取外置词库内容"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/logs",
-                self._web_get_logs,
-                ["GET"],
-                "获取最近审核日志"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/moderation_users",
-                self._web_get_moderation_users,
-                ["GET"],
-                "获取被撤回用户聚合列表"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/logs/delete",
-                self._web_delete_logs,
-                ["POST"],
-                "批量删除审核日志"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/logs/export",
-                self._web_export_logs,
-                ["GET"],
-                "导出审核日志"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/groups",
-                self._web_get_groups,
-                ["GET"],
-                "获取群列表"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/group_members",
-                self._web_get_group_members,
-                ["GET"],
-                "获取群成员列表"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/whitelist/add",
-                self._web_whitelist_add,
-                ["POST"],
-                "添加群白名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/whitelist/remove",
-                self._web_whitelist_remove,
-                ["POST"],
-                "移除群白名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/blacklist/add",
-                self._web_blacklist_add,
-                ["POST"],
-                "添加群黑名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/blacklist/remove",
-                self._web_blacklist_remove,
-                ["POST"],
-                "移除群黑名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/user_blacklist/add",
-                self._web_user_blacklist_add,
-                ["POST"],
-                "添加用户黑名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/user_blacklist/remove",
-                self._web_user_blacklist_remove,
-                ["POST"],
-                "移除用户黑名单"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/admin/add",
-                self._web_admin_add,
-                ["POST"],
-                "添加管理员"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/admin/remove",
-                self._web_admin_remove,
-                ["POST"],
-                "移除管理员"
-            )
-            self.context.register_web_api(
-                f"/{_PLUGIN_NAME}/today_stats",
-                self._web_today_stats,
-                ["GET"],
-                "获取今日拦截统计"
-            )
+            routes = [
+                ("/stats", self._web_stats, ["GET"], "获取群管统计信息"),
+                ("/config", self._web_get_config, ["GET"], "获取当前配置"),
+                ("/config", self._web_update_config, ["POST"], "更新配置"),
+                ("/providers", self._web_get_providers, ["GET"], "获取可用LLM Provider列表"),
+                ("/lexicon", self._web_get_lexicon, ["GET"], "获取外置词库内容"),
+                ("/logs", self._web_get_logs, ["GET"], "获取最近审核日志"),
+                ("/moderation_users", self._web_get_moderation_users, ["GET"], "获取被撤回用户聚合列表"),
+                ("/logs/delete", self._web_delete_logs, ["POST"], "批量删除审核日志"),
+                ("/logs/export", self._web_export_logs, ["GET"], "导出审核日志"),
+                ("/groups", self._web_get_groups, ["GET"], "获取群列表"),
+                ("/group_members", self._web_get_group_members, ["GET"], "获取群成员列表"),
+                ("/whitelist/add", self._web_whitelist_add, ["POST"], "添加群白名单"),
+                ("/whitelist/remove", self._web_whitelist_remove, ["POST"], "移除群白名单"),
+                ("/blacklist/add", self._web_blacklist_add, ["POST"], "添加群黑名单"),
+                ("/blacklist/remove", self._web_blacklist_remove, ["POST"], "移除群黑名单"),
+                ("/user_blacklist/add", self._web_user_blacklist_add, ["POST"], "添加用户黑名单"),
+                ("/user_blacklist/remove", self._web_user_blacklist_remove, ["POST"], "移除用户黑名单"),
+                ("/admin/add", self._web_admin_add, ["POST"], "添加管理员"),
+                ("/admin/remove", self._web_admin_remove, ["POST"], "移除管理员"),
+                ("/today_stats", self._web_today_stats, ["GET"], "获取今日拦截统计"),
+            ]
+            for path, handler, methods, desc in routes:
+                self.context.register_web_api(
+                    f"/{_PLUGIN_NAME}{path}",
+                    self._wrap_web_handler(handler),
+                    methods,
+                    desc
+                )
             logger.info("[GroupMgr] WebUI API 已注册")
         except Exception as e:
             logger.warning(f"[GroupMgr] 注册 WebUI API 失败: {e}")
@@ -295,7 +215,7 @@ class Main(Star):
             sc.update(today_start=today_start, blocked=today_blocked, passed=today_passed, total=today_total)
         stats = {
             "plugin_name": _PLUGIN_NAME,
-            "version": "v1.9.5",
+            "version": "v1.9.6",
             "auto_moderate_enabled": self.auto_moderate_enabled,
             "group_white_list_count": len(self.group_white_list),
             "group_black_list_count": len(self.group_black_list),
@@ -332,11 +252,9 @@ class Main(Star):
 
     async def _web_get_config(self):
         safe_config = {}
-        for k, v in self.config.items():
-            if any(sk in k.lower() for sk in ("token", "secret", "password", "key")):
-                if "provider_id" not in k:
-                    continue
-            safe_config[k] = v
+        for k in self._config_schema:
+            if k in self.config:
+                safe_config[k] = self.config[k]
         safe_config["_white_list"] = self.group_white_list
         safe_config["_black_list"] = self.group_black_list
         safe_config["_user_black_list"] = self.user_black_list
@@ -985,6 +903,12 @@ class Main(Star):
         group_id = self._get_group_id(event)
         if group_id:
             cache_key = f"{group_id}:{user_id}"
+            if len(self._admin_role_cache) > 1000:
+                now = time.time()
+                self._admin_role_cache = {
+                    k: v for k, v in self._admin_role_cache.items()
+                    if now - v[1] < self._admin_role_cache_ttl
+                }
             cached = self._admin_role_cache.get(cache_key)
             if cached:
                 is_admin_val, ts = cached
@@ -2323,6 +2247,55 @@ class Main(Star):
                 all_texts.append("[转发消息获取失败]")
         return '\n'.join(all_texts), is_qq_favorite
 
+    @staticmethod
+    def _is_qq_favorite_text(text: str) -> bool:
+        if not isinstance(text, str):
+            return False
+        return 'QQ收藏' in text or 'qq收藏' in text.lower() or 'sharechain.qq.com' in text
+
+    @staticmethod
+    def _check_dict_seg_qq_favorite(seg: dict) -> bool:
+        if not isinstance(seg, dict):
+            return False
+        seg_type = seg.get('type', '')
+        seg_data = seg.get('data', {}) or {}
+        if seg_type == 'json':
+            return Main._is_qq_favorite_text(seg_data.get('data', ''))
+        if seg_type == 'app':
+            return Main._is_qq_favorite_text(seg_data.get('content', ''))
+        return False
+
+    async def _check_forward_msg_qq_favorite(self, client, fid: str) -> bool:
+        if not client or not fid:
+            return False
+        try:
+            result = await client.call_action('get_forward_msg', message_id=fid)
+            if not isinstance(result, dict):
+                return False
+            messages = result.get('messages', []) or result.get('message', [])
+            if isinstance(messages, dict):
+                messages = messages.get('message', [])
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    continue
+                sender = msg.get('sender', {})
+                if isinstance(sender, dict):
+                    nickname = sender.get('nickname', '') or ''
+                    card = sender.get('card', '') or ''
+                    if self._is_qq_favorite_text(nickname) or self._is_qq_favorite_text(card):
+                        return True
+                content = msg.get('message', '')
+                if isinstance(content, list):
+                    for c_seg in content:
+                        if isinstance(c_seg, dict) and c_seg.get('type') == 'app':
+                            if self._is_qq_favorite_text(c_seg.get('data', {}).get('content', '')):
+                                return True
+                elif self._is_qq_favorite_text(content):
+                    return True
+        except Exception as e:
+            logger.debug(f"[GroupMgr] 检查转发QQ收藏失败: {e}")
+        return False
+
     async def _check_qq_favorite_non_forward(self, event: AiocqhttpMessageEvent) -> bool:
         raw = getattr(event, 'raw_event', None)
         chain = event.get_messages() or []
@@ -2330,33 +2303,20 @@ class Main(Star):
             msg_list = raw.get('message', [])
             if isinstance(msg_list, list):
                 for seg in msg_list:
-                    if not isinstance(seg, dict):
-                        continue
-                    seg_type = seg.get('type', '')
-                    seg_data = seg.get('data', {}) or {}
-                    if seg_type == 'json':
-                        json_content = seg_data.get('data', '')
-                        if isinstance(json_content, str) and ('QQ收藏' in json_content or 'qq收藏' in json_content.lower() or 'sharechain.qq.com' in json_content):
-                            return True
-                    elif seg_type == 'app':
-                        app_content = seg_data.get('content', '')
-                        if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
-                            return True
+                    if self._check_dict_seg_qq_favorite(seg):
+                        return True
         for seg in chain:
             if isinstance(seg, dict):
                 continue
             seg_cls = type(seg).__name__
-            if seg_cls == 'Json' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
+            if seg_cls in ('Json',) or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
                 json_data = getattr(seg, 'data', '') or ''
-                if isinstance(json_data, str) and ('QQ收藏' in json_data or 'qq收藏' in json_data.lower() or 'sharechain.qq.com' in json_data):
+                if self._is_qq_favorite_text(json_data):
                     return True
-                if isinstance(json_data, dict):
-                    json_str = str(json_data)
-                    if 'QQ收藏' in json_str or 'qq收藏' in json_str.lower() or 'sharechain.qq.com' in json_str:
-                        return True
-            elif seg_cls == 'App' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
-                app_content = getattr(seg, 'content', '') or ''
-                if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                if isinstance(json_data, dict) and self._is_qq_favorite_text(str(json_data)):
+                    return True
+            elif seg_cls in ('App',) or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
+                if self._is_qq_favorite_text(getattr(seg, 'content', '')):
                     return True
         return False
 
@@ -2373,105 +2333,31 @@ class Main(Star):
                         continue
                     seg_type = seg.get('type', '')
                     seg_data = seg.get('data', {}) or {}
-
                     if seg_type == 'forward':
                         fid = seg_data.get('res_id', '') or seg_data.get('id', '')
-                        if fid and client:
-                            try:
-                                result = await client.call_action('get_forward_msg', message_id=fid)
-                                if isinstance(result, dict):
-                                    messages = result.get('messages', []) or result.get('message', [])
-                                    if isinstance(messages, dict):
-                                        messages = messages.get('message', [])
-                                    for msg in messages:
-                                        if not isinstance(msg, dict):
-                                            continue
-                                        sender = msg.get('sender', {})
-                                        if isinstance(sender, dict):
-                                            nickname = sender.get('nickname', '') or ''
-                                            card = sender.get('card', '') or ''
-                                            if 'QQ收藏' in nickname or 'QQ收藏' in card or 'qq收藏' in nickname.lower() or 'qq收藏' in card.lower():
-                                                return True
-                                        content = msg.get('message', '')
-                                        if isinstance(content, list):
-                                            for c_seg in content:
-                                                if not isinstance(c_seg, dict):
-                                                    continue
-                                                if c_seg.get('type') == 'app':
-                                                    app_content = c_seg.get('data', {}).get('content', '')
-                                                    if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
-                                                        return True
-                                        elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
-                                            return True
-                            except Exception as e:
-                                logger.debug(f"[GroupMgr] 检查转发QQ收藏失败: {e}")
-
-                    elif seg_type == 'json':
-                        json_content = seg_data.get('data', '')
-                        if isinstance(json_content, str) and ('QQ收藏' in json_content or 'qq收藏' in json_content.lower() or 'sharechain.qq.com' in json_content):
-                            logger.info(f"[GroupMgr] 检测到JSON卡片中的QQ收藏内容")
+                        if await self._check_forward_msg_qq_favorite(client, fid):
                             return True
-
-                    elif seg_type == 'app':
-                        app_content = seg_data.get('content', '')
-                        if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
-                            return True
+                    elif self._check_dict_seg_qq_favorite(seg):
+                        return True
 
         for seg in chain:
             if isinstance(seg, dict):
                 continue
             seg_cls = type(seg).__name__
-
-            if seg_cls == 'Json' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
+            if seg_cls in ('Json',) or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'json'):
                 json_data = getattr(seg, 'data', '') or ''
-                if isinstance(json_data, str) and ('QQ收藏' in json_data or 'qq收藏' in json_data.lower() or 'sharechain.qq.com' in json_data):
-                    logger.info(f"[GroupMgr] 检测到Json对象中的QQ收藏内容")
+                if self._is_qq_favorite_text(json_data):
                     return True
-                if isinstance(json_data, dict):
-                    json_str = str(json_data)
-                    if 'QQ收藏' in json_str or 'qq收藏' in json_str.lower() or 'sharechain.qq.com' in json_str:
-                        logger.info(f"[GroupMgr] 检测到Json对象(dict)中的QQ收藏内容")
-                        return True
-
-            elif seg_cls == 'Forward' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
-                if not client:
-                    continue
+                if isinstance(json_data, dict) and self._is_qq_favorite_text(str(json_data)):
+                    return True
+            elif seg_cls in ('Forward',) or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'forward'):
                 fid = getattr(seg, 'id', '') or ''
                 if not fid and hasattr(seg, 'data') and isinstance(getattr(seg, 'data', None), dict):
                     fid = getattr(seg, 'data', {}).get('id', '')
-                if fid:
-                    try:
-                        result = await client.call_action('get_forward_msg', message_id=fid)
-                        if isinstance(result, dict):
-                            messages = result.get('messages', []) or result.get('message', [])
-                            if isinstance(messages, dict):
-                                messages = messages.get('message', [])
-                            for msg in messages:
-                                if not isinstance(msg, dict):
-                                    continue
-                                sender = msg.get('sender', {})
-                                if isinstance(sender, dict):
-                                    nickname = sender.get('nickname', '') or ''
-                                    card = sender.get('card', '') or ''
-                                    if 'QQ收藏' in nickname or 'QQ收藏' in card:
-                                        return True
-                                content = msg.get('message', '')
-                                if isinstance(content, list):
-                                    for c_seg in content:
-                                        if not isinstance(c_seg, dict):
-                                            continue
-                                        if c_seg.get('type') == 'app':
-                                            app_content = c_seg.get('data', {}).get('content', '')
-                                            if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
-                                                return True
-                                elif isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
-                                    return True
-                    except Exception as e:
-                        logger.debug(f"[GroupMgr] 检查对象转发QQ收藏失败: {e}")
-
-            elif seg_cls == 'App' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
-                app_content = getattr(seg, 'content', '') or ''
-                if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                if await self._check_forward_msg_qq_favorite(client, fid):
+                    return True
+            elif seg_cls in ('App',) or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'app'):
+                if self._is_qq_favorite_text(getattr(seg, 'content', '')):
                     return True
 
         return False

@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.9.6] - 2026-05-20
+
+### 安全修复
+
+- **`_web_get_config` 敏感信息泄露修复**：从黑名单过滤改为白名单机制，仅返回 `_conf_schema.json` 中定义的配置项，防止未知命名的敏感字段（如 ak/sk/auth 等）被API暴露
+- **`quart_request` 为None时WebAPI防护**：添加 `_check_quart_available` + `_wrap_web_handler` 包装器，所有Web API在Quart不可用时返回明确错误而非 `AttributeError`
+- **`_save_logs` 同步写入退化修复**：`RuntimeError` 时不再退化执行同步文件写入，改为跳过并警告，避免阻塞事件循环
+
+### 代码质量
+
+- **import顺序修正（PEP 8）**：`import tempfile` 从方法内部移至文件顶部；`_PLUGIN_NAME` 移至所有import之后
+- **`_check_qq_favorite` 深层嵌套重构**：提取 `_is_qq_favorite_text`、`_check_dict_seg_qq_favorite`、`_check_forward_msg_qq_favorite` 三个辅助方法，将6-8层嵌套降为2-3层
+- **`_register_web_apis` 循环注册**：20个重复的 `register_web_api` 调用改为数据驱动的循环注册，代码量减少90行
+- **`_admin_role_cache` 内存泄漏修复**：缓存超过1000条时自动清理过期条目，防止长时间运行后字典无限膨胀
+
+### 正则优化
+
+- **patterns.py 冗余正则清理**：修复335处 `(?:X|X)` 无意义重复模式（如 `(?:人|人)` → `人`），AD_PATTERNS从571条精简为558条，减少正则引擎不必要的分支回溯
+
+---
+
 ## [1.9.5] - 2026-05-20
 
 ### 修复
@@ -18,7 +39,7 @@
 ### 文档
 
 - **新增「为什么内置这么多正则？」章节**：解释571条广告正则的必要性、性能保障措施、误判处理机制
-- **路线图更新**：SQLite 大饼详细化（多维度索引查询、自动归档清理、分页搜索排序、全自动迁移）；新增「数据统计仪表盘」和「Aho-Corasick 自动机匹配」规划项
+- **路线图更新**：SQLite 详细化（多维度索引查询、自动归档清理、分页搜索排序、全自动迁移）；新增「数据统计仪表盘」和「Aho-Corasick 自动机匹配」规划项
 
 ---
 
