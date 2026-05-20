@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.9.5] - 2026-05-20
+
+### 修复
+
+- **`_web_stats` NameError 修复**：`len(logs)` 引用未定义变量导致 Dashboard 统计接口 500 错误，改为 `len(self._moderation_logs)`
+- **`recall_all` 逻辑缺陷修复**：docstring 声明 `[条数]` 但代码将参数当 `user_id` 使用。重写参数解析，支持 `/批量撤回 [条数]`、`/批量撤回 @用户 [条数]`、`/批量撤回 用户QQ号 [条数]` 三种用法，默认撤回20条
+- **`_web_get_config` 方法丢失修复**：上版本重构时误删方法声明，导致获取配置接口异常
+
+### 优化
+
+- **`_web_update_config` 硬编码重构**：将 40+ 个硬编码字段名列表改为从 `_conf_schema.json` 自动推断类型，新增配置项无需手动维护字段列表
+- **`terminate` 异步化**：`_write_logs_sync` 改用 `await asyncio.to_thread()` 剥离到线程池，避免关机时事件循环阻塞
+- **`except Exception: pass` 静默异常修复**：8处关键位置改为 `logger.debug`，保留调试信息不再吞异常
+- **`_try_get_sender_id` 精简**：5段重复 try/except 精简为 lambda 列表循环，代码量减半
+
+### 文档
+
+- **新增「为什么内置这么多正则？」章节**：解释571条广告正则的必要性、性能保障措施、误判处理机制
+- **路线图更新**：SQLite 大饼详细化（多维度索引查询、自动归档清理、分页搜索排序、全自动迁移）；新增「数据统计仪表盘」和「Aho-Corasick 自动机匹配」规划项
+
+---
+
 ## [1.9.4] - 2026-05-20
 
 ### 重大更新

@@ -28,11 +28,12 @@ _PLUGIN_NAME = "astrbot_plugin_group_guardian"
 from .patterns import _POLITICAL_WHITELIST, SWEAR_PATTERNS, AD_PATTERNS
 
 
-@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.4", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
+@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.5", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
 class Main(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
         self.config = config or {}
+        self._config_schema = self._load_config_schema()
         self._sync_astrbot_admins()
         self._client = None
         _gwl = self.config.get("group_white_list", [])
@@ -62,7 +63,7 @@ class Main(Star):
         try:
             data = list(self._moderation_logs)
             p = self._logs_path()
-            self._write_logs_sync(p, data)
+            await asyncio.to_thread(self._write_logs_sync, p, data)
             logger.info("[GroupMgr] 插件卸载，日志已保存")
         except Exception as e:
             logger.warning(f"[GroupMgr] 插件卸载保存日志失败: {e}")
@@ -83,14 +84,23 @@ class Main(Star):
                 self.config["admin_list"] = plugin_admins
                 self._save_config_safe()
                 logger.info(f"[GroupMgr] 自动同步AstrBot管理员到插件admin_list: {new_admins}")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"[GroupMgr] 同步AstrBot管理员失败: {_e}")
 
     def _save_config_safe(self) -> None:
         try:
             self.config.save_config()
         except Exception:
             logger.exception("save_config failed")
+
+    @staticmethod
+    def _load_config_schema() -> dict:
+        try:
+            schema_path = os.path.join(os.path.dirname(__file__), "_conf_schema.json")
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {}
 
     def _logs_path(self) -> str:
         data_dir = StarTools.get_data_dir()
@@ -285,7 +295,7 @@ class Main(Star):
             sc.update(today_start=today_start, blocked=today_blocked, passed=today_passed, total=today_total)
         stats = {
             "plugin_name": _PLUGIN_NAME,
-            "version": "v1.9.3",
+            "version": "v1.9.5",
             "auto_moderate_enabled": self.auto_moderate_enabled,
             "group_white_list_count": len(self.group_white_list),
             "group_black_list_count": len(self.group_black_list),
@@ -297,7 +307,7 @@ class Main(Star):
             "lexicon_total_keywords": sum(
                 len(cat.get("keywords", [])) for cat in self._lexicon.values()
             ),
-            "total_logs": len(logs),
+            "total_logs": len(self._moderation_logs),
             "today_total": today_total,
             "today_blocked": today_blocked,
             "today_passed": today_passed,
@@ -316,8 +326,8 @@ class Main(Star):
                     providers.append({"id": pid, "name": pname, "model": getattr(meta, 'model', '')})
                 except Exception:
                     continue
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"[GroupMgr] 获取Provider列表失败: {_e}")
         return jsonify(providers)
 
     async def _web_get_config(self):
@@ -336,81 +346,53 @@ class Main(Star):
     async def _web_update_config(self):
         try:
             data = await quart_request.get_json(force=True, silent=True) or {}
-            bool_keys = [
-                "enabled", "auto_moderate_enabled", "auto_moderate_notice",
-                "scan_swear", "scan_ad",
-                "llm_moderation_enabled", "llm_moderation_ban",
-                "lexicon_political_enabled", "lexicon_porn_enabled",
-                "lexicon_violent_enabled", "lexicon_reactionary_enabled",
-                "lexicon_weapons_enabled", "lexicon_corruption_enabled",
-                "lexicon_illegal_url_enabled", "lexicon_other_enabled",
-                "ban_enabled", "unban_enabled", "kick_enabled",
-                "whole_ban_enabled", "set_card_enabled",
-                "send_announcement_enabled", "delete_announcement_enabled",
-                "list_announcements_enabled", "member_list_enabled",
-                "set_admin_enabled", "set_group_name_enabled",
-                "set_title_enabled", "banned_list_enabled",
-                "join_verify_enabled", "recall_enabled",
-                "essence_enabled", "group_files_enabled",
-                "prompt_injection_enabled",
-                "group_honor_enabled", "at_all_remain_enabled",
-                "ignore_requests_enabled", "group_msg_history_enabled",
-                "group_portrait_enabled", "group_sign_enabled",
-                "scan_forward_msg", "ocr_enabled", "recall_qq_favorite_enabled", "scan_sticker_enabled",
-            ]
-            list_keys = [
-                "group_white_list", "group_black_list",
-                "user_black_list", "admin_list",
-            ]
-            int_keys = ["moderation_ban_duration"]
-            str_keys = ["moderation_llm_provider_id", "ban_notice",
-                        "ocr_provider_id", "ocr_prompt_template",
-                        "ocr_custom_system_prompt", "ocr_custom_user_prompt"]
+            schema = self._config_schema
+            int_ranges = {"moderation_ban_duration": (60, 2592000)}
+            list_postprocess = {
+                "group_white_list": ("group_white_list", "_group_white_set"),
+                "group_black_list": ("group_black_list", "_group_black_set"),
+                "user_black_list": ("user_black_list", "_user_black_set"),
+            }
             updated = []
-            for key in bool_keys:
-                if key in data:
-                    self.config[key] = bool(data[key])
+            for key, value in data.items():
+                if key not in schema:
+                    continue
+                field_type = schema[key].get("type", "")
+                if field_type == "bool":
+                    self.config[key] = bool(value)
                     updated.append(key)
-            for key in list_keys:
-                if key in data:
-                    val = data[key]
+                elif field_type == "list":
+                    val = value
                     if isinstance(val, str):
                         val = [x.strip() for x in val.replace("，", ",").split(",") if x.strip()]
                     if isinstance(val, list):
                         self.config[key] = [str(x).strip() for x in val if x]
                         updated.append(key)
-            for key in int_keys:
-                if key in data:
+                elif field_type == "int":
                     try:
-                        val = int(data[key])
-                        if val < 60:
-                            val = 60
-                        elif val > 2592000:
-                            val = 2592000
+                        val = int(value)
+                        lo, hi = int_ranges.get(key, (None, None))
+                        if lo is not None:
+                            val = max(lo, val)
+                        if hi is not None:
+                            val = min(hi, val)
                         self.config[key] = val
                         updated.append(key)
                     except (ValueError, TypeError):
                         pass
-            for key in str_keys:
-                if key in data:
-                    self.config[key] = str(data[key])
+                elif field_type in ("string", "text"):
+                    self.config[key] = str(value)
                     updated.append(key)
             if "auto_moderate_enabled" in updated:
                 self.auto_moderate_enabled = bool(self.config.get("auto_moderate_enabled", True))
             if any(k.startswith("lexicon_") for k in updated):
                 self._compiled_lexicon = self._compile_lexicon()
-            if "group_white_list" in updated:
-                _gwl = self.config.get("group_white_list", [])
-                self.group_white_list = [str(g).strip() for g in (_gwl if isinstance(_gwl, list) else [_gwl]) if g]
-                self._group_white_set = set(self.group_white_list)
-            if "group_black_list" in updated:
-                _gbl = self.config.get("group_black_list", [])
-                self.group_black_list = [str(g).strip() for g in (_gbl if isinstance(_gbl, list) else [_gbl]) if g]
-                self._group_black_set = set(self.group_black_list)
-            if "user_black_list" in updated:
-                _ubl = self.config.get("user_black_list", [])
-                self.user_black_list = [str(u).strip() for u in (_ubl if isinstance(_ubl, list) else [_ubl]) if u]
-                self._user_black_set = set(self.user_black_list)
+            for cfg_key, (list_attr, set_attr) in list_postprocess.items():
+                if cfg_key in updated:
+                    raw = self.config.get(cfg_key, [])
+                    cleaned = [str(g).strip() for g in (raw if isinstance(raw, list) else [raw]) if g]
+                    setattr(self, list_attr, cleaned)
+                    setattr(self, set_attr, set(cleaned))
             if "admin_list" in updated:
                 al = self.config.get("admin_list", [])
                 self.config["admin_list"] = [str(a).strip() for a in (al if isinstance(al, list) else [al]) if a]
@@ -959,41 +941,24 @@ class Main(Star):
             gid = event.get_group_id()
             if gid:
                 return str(gid)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"[GroupMgr] _get_group_id fallback: {_e}")
         return ""
 
     def _try_get_sender_id(self, event: AstrMessageEvent) -> str:
-        try:
-            sid = event.get_sender_id()
-            if sid:
-                return str(sid)
-        except Exception:
-            pass
-        try:
-            if hasattr(event, 'sender') and hasattr(event.sender, 'user_id'):
-                return str(event.sender.user_id)
-        except Exception:
-            pass
-        try:
-            if hasattr(event, 'user_id'):
-                return str(event.user_id)
-        except Exception:
-            pass
-        try:
-            raw = getattr(event, 'raw_event', None)
-            if isinstance(raw, dict):
-                uid = raw.get('user_id') or raw.get('sender', {}).get('user_id')
-                if uid:
-                    return str(uid)
-        except Exception:
-            pass
-        try:
-            msg = getattr(event, 'message_obj', None)
-            if msg and hasattr(msg, 'sender') and hasattr(msg.sender, 'user_id'):
-                return str(msg.sender.user_id)
-        except Exception:
-            pass
+        for getter in [
+            lambda: str(event.get_sender_id()) if event.get_sender_id() else None,
+            lambda: str(event.sender.user_id) if hasattr(event, 'sender') and hasattr(event.sender, 'user_id') else None,
+            lambda: str(event.user_id) if hasattr(event, 'user_id') else None,
+            lambda: str((getattr(event, 'raw_event', None) or {}).get('user_id') or (getattr(event, 'raw_event', None) or {}).get('sender', {}).get('user_id')) or None,
+            lambda: str(event.message_obj.sender.user_id) if hasattr(event, 'message_obj') and hasattr(event.message_obj, 'sender') and hasattr(event.message_obj.sender, 'user_id') else None,
+        ]:
+            try:
+                result = getter()
+                if result and result != 'None':
+                    return result
+            except Exception:
+                pass
         return ""
 
     async def _is_admin(self, event: AstrMessageEvent) -> bool:
@@ -1007,8 +972,8 @@ class Main(Star):
             ab_config = getattr(self.context, 'astrbot_config', None)
             if ab_config:
                 astrbot_admin_ids = [str(x).strip() for x in (ab_config.get('admin_id', []) or []) if str(x).strip()]
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"[GroupMgr] 获取AstrBot管理员列表失败: {_e}")
         try:
             config_admins = self.config.get("admin_list", [])
             all_admins = set(astrbot_admin_ids) | set(str(a).strip() for a in config_admins if a)
@@ -2621,8 +2586,8 @@ class Main(Star):
                         )
                         if r:
                             return str(r)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"[GroupMgr] OCR LLM单次调用失败: {_e}")
 
             return ""
         except Exception as e:
@@ -3739,7 +3704,7 @@ class Main(Star):
     @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("批量撤回")
     async def recall_all(self, event: AstrMessageEvent):
-        '''批量撤回最近消息。用法: /批量撤回 [条数]'''
+        '''批量撤回最近消息。用法: /批量撤回 [条数] 或 /批量撤回 @用户 [条数]'''
         ok, msg = self._cfg_check("recall_enabled", "撤回消息")
         if not ok:
             yield event.plain_result(msg)
@@ -3749,9 +3714,15 @@ class Main(Star):
             yield event.plain_result(reason)
             return
         args = event.message_str.split()
-        user_id = None
-        if len(args) >= 2:
-            user_id = args[1]
+        target_user = None
+        count = 20
+        for arg in args[1:]:
+            if arg.isdigit():
+                count = max(1, min(int(arg), 100))
+            elif arg.startswith('@'):
+                target_user = arg[1:]
+            else:
+                target_user = arg
         group_id = self._get_group_id(event)
         if not group_id:
             yield event.plain_result("无法获取群号")
@@ -3765,9 +3736,11 @@ class Main(Star):
             messages = result.get('messages', []) if isinstance(result, dict) else []
             recalled = 0
             for msg in messages:
+                if recalled >= count:
+                    break
                 sender = msg.get('sender', {})
                 uid = str(sender.get('user_id', ''))
-                if user_id and uid != user_id:
+                if target_user and uid != target_user:
                     continue
                 msg_id = msg.get('message_id')
                 if msg_id:
@@ -3776,6 +3749,7 @@ class Main(Star):
                         recalled += 1
                     except Exception:
                         pass
-            yield event.plain_result(f"已尝试撤回 {recalled} 条消息")
+            filter_desc = f"（用户{target_user}）" if target_user else ""
+            yield event.plain_result(f"已尝试撤回 {recalled} 条消息{filter_desc}")
         except Exception as e:
             yield event.plain_result(f"撤回失败: {e}")
