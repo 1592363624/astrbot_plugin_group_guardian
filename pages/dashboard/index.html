@@ -560,6 +560,9 @@ function esc(s) {
   d.textContent = s || '';
   return d.innerHTML;
 }
+function escAttr(s) {
+  return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 function fmtTime(ts) {
   if (!ts) return '';
@@ -880,10 +883,10 @@ function renderUsers(users) {
       if (imgData) {
         var urls = imgData.split('|||');
         urls.forEach(function(u) {
-          if (u) imgHtml += '<img src="' + u + '" style="max-width:100%;border-radius:6px;margin-bottom:8px;cursor:pointer" onclick="window.open(this.src)" onerror="this.style.display=\'none\'" />';
+          if (u) imgHtml += '<div class="msg-img-wrap"><img src="' + escAttr(u) + '" style="max-width:100%;border-radius:6px;cursor:pointer;display:block" onclick="window.open(this.src)" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" /><div style="display:none;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;color:var(--text-muted);font-size:12px;text-align:center">图片链接已过期</div></div>';
         });
       }
-      var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '</div>' : '') +
+      var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">图片链接可能随时间过期，点击图片可在新窗口查看原图</div></div>' : '') +
         '<div style="white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:13px;color:var(--text-primary);max-height:400px;overflow-y:auto">' + fullText + '</div>';
       showModal('消息详情', bodyHtml, '<button class="btn btn-ghost btn-sm" id="btnMsgClose2">关闭</button>');
       $('#btnMsgClose2').addEventListener('click', closeModal);
@@ -918,10 +921,10 @@ async function loadLogs() {
       if (imgData) {
         var urls = imgData.split('|||');
         urls.forEach(function(u) {
-          if (u) imgHtml += '<img src="' + u + '" style="max-width:100%;border-radius:6px;margin-bottom:8px;cursor:pointer" onclick="window.open(this.src)" onerror="this.style.display=\'none\'" />';
+          if (u) imgHtml += '<div class="msg-img-wrap"><img src="' + escAttr(u) + '" style="max-width:100%;border-radius:6px;cursor:pointer;display:block" onclick="window.open(this.src)" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" /><div style="display:none;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;color:var(--text-muted);font-size:12px;text-align:center">图片链接已过期</div></div>';
         });
       }
-      var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '</div>' : '') +
+      var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">图片链接可能随时间过期，点击图片可在新窗口查看原图</div></div>' : '') +
         '<div style="white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:13px;color:var(--text-primary);max-height:400px;overflow-y:auto">' + fullText + '</div>';
       showModal('消息详情', bodyHtml, '<button class="btn btn-ghost btn-sm" id="btnMsgClose">关闭</button>');
       $('#btnMsgClose').addEventListener('click', closeModal);

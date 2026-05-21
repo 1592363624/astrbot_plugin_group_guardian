@@ -1011,6 +1011,11 @@ class Main(Star):
         self._stats_cache["today_start"] = 0
 
     def _log_moderation(self, group_id: str, user_id: str, user_name: str, msg_text: str, action: str, reason: str = "", image_urls: list = None):
+        filtered_urls = []
+        if image_urls:
+            for u in image_urls:
+                if u and not self._is_sticker_image(u):
+                    filtered_urls.append(u)
         log_entry = {
             "id": len(self._moderation_logs),
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1022,7 +1027,7 @@ class Main(Star):
             "msg_preview": msg_text[:100],
             "action": action,
             "reason": reason,
-            "image_urls": image_urls or [],
+            "image_urls": filtered_urls[:5],
         }
         self._moderation_logs.append(log_entry)
         today_start = self._today_start()
@@ -2398,8 +2403,12 @@ class Main(Star):
         if not url:
             return False
         lower = url.lower()
-        sticker_markers = ['sticker', 'emoji', 'face', 'marketface', 'emoticon']
-        return any(m in lower for m in sticker_markers)
+        sticker_markers = ['sticker', 'emoji', 'marketface', 'emoticon']
+        if any(m in lower for m in sticker_markers):
+            return True
+        if '/face/' in lower or '/face?' in lower or '&face=' in lower or '?face=' in lower:
+            return True
+        return False
 
     async def _ocr_images(self, event: AiocqhttpMessageEvent, image_urls: list) -> str:
         if not image_urls:
@@ -2519,7 +2528,6 @@ class Main(Star):
         raw_text_parts = []
         image_urls = []
         has_forward = False
-        has_sticker = False
         for seg in (chain or []):
             if isinstance(seg, dict):
                 seg_type = seg.get('type', '')
@@ -2533,7 +2541,6 @@ class Main(Star):
                     if img_url:
                         image_urls.append(img_url)
                 elif seg_type == 'market_face':
-                    has_sticker = True
                     mf_url = seg_data.get('url', '') or ''
                     if mf_url:
                         image_urls.append(mf_url)
@@ -2554,7 +2561,6 @@ class Main(Star):
                     else:
                         logger.debug(f"[GroupMgr] Image段无URL: {seg}")
                 elif seg_cls == 'MarketFace' or (hasattr(seg, 'type') and getattr(seg, 'type', '') == 'market_face'):
-                    has_sticker = True
                     mf_url = getattr(seg, 'url', '') or ''
                     if not mf_url and hasattr(seg, 'data'):
                         seg_data = getattr(seg, 'data', {})
