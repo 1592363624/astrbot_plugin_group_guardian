@@ -9,7 +9,7 @@ import io
 import tempfile
 from collections import deque
 from datetime import datetime
-from typing import Optional, Tuple, Dict, List
+from typing import Tuple, Dict, List
 
 from astrbot.api import logger
 from astrbot.api.event import filter, AstrMessageEvent
@@ -933,13 +933,9 @@ class Main(Star):
                 if time.time() - ts < self._admin_role_cache_ttl:
                     return is_admin_val
 
-            try:
-                group_id_int = int(group_id)
-            except (ValueError, TypeError):
-                return False
-            try:
-                user_id_int = int(user_id)
-            except (ValueError, TypeError):
+            group_id_int = self._safe_int(group_id, 0)
+            user_id_int = self._safe_int(user_id, 0)
+            if not group_id_int or not user_id_int:
                 return False
             try:
                 client = await self._get_client(event)
@@ -1047,11 +1043,7 @@ class Main(Star):
         self._stats_cache.pop("user_names", None)
 
     def _log_moderation(self, group_id: str, user_id: str, user_name: str, msg_text: str, action: str, reason: str = "", image_urls: list = None):
-        valid_urls = []
-        if image_urls:
-            for u in image_urls:
-                if u:
-                    valid_urls.append(u)
+        valid_urls = [u for u in (image_urls or []) if u][:5]
         log_entry = {
             "id": len(self._moderation_logs),
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1063,7 +1055,7 @@ class Main(Star):
             "msg_preview": msg_text[:100],
             "action": action,
             "reason": reason,
-            "image_urls": valid_urls[:5],
+            "image_urls": valid_urls,
         }
         self._moderation_logs.append(log_entry)
         today_start = self._today_start()
@@ -1662,9 +1654,8 @@ class Main(Star):
         if not self._client:
             return []
         client = self._client
-        try:
-            gid = int(group_id)
-        except (ValueError, TypeError):
+        gid = self._safe_int(group_id, 0)
+        if not gid:
             return []
         try:
             result = await client.call_action('get_group_msg_history',
@@ -2462,7 +2453,7 @@ class Main(Star):
         uid = self._safe_int(user_id, 0)
         if not gid or not uid:
             return
-        ban_duration = duration if duration is not None else int(self.config.get("moderation_ban_duration", 1800))
+        ban_duration = duration if duration is not None else self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800)
         try:
             await client.call_action('set_group_ban', group_id=gid, user_id=uid, duration=ban_duration)
         except Exception as e:
@@ -2643,10 +2634,7 @@ class Main(Star):
         args = event.message_str.split()
         count = 1
         if len(args) >= 2:
-            try:
-                count = int(args[1])
-            except ValueError:
-                pass
+            count = self._safe_int(args[1], 1)
         count = max(1, min(count, 10))
         group_id = self._get_group_id(event)
         if not group_id:
@@ -2686,12 +2674,16 @@ class Main(Star):
             return
         try:
             user_id = str(args[1]).strip()
-            duration = min(max(int(args[2]) if len(args) > 2 else 10, 1), 43200)
+            duration = min(max(self._safe_int(args[2], 10) if len(args) > 2 else 10, 1), 43200)
             _, client, gid, err = await self._get_group_client(event, need_gid=True)
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_ban', "禁言", group_id=gid, user_id=int(user_id), duration=duration * 60)
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_ban', "禁言", group_id=gid, user_id=uid, duration=duration * 60)
             if not ok:
                 yield event.plain_result(f"禁言失败: {err}")
                 return
@@ -2717,7 +2709,11 @@ class Main(Star):
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_ban', "解禁", group_id=gid, user_id=int(user_id), duration=0)
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_ban', "解禁", group_id=gid, user_id=uid, duration=0)
             if not ok:
                 yield event.plain_result(f"解禁失败: {err}")
                 return
@@ -2743,7 +2739,11 @@ class Main(Star):
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_kick', "踢人", group_id=gid, user_id=int(user_id))
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_kick', "踢人", group_id=gid, user_id=uid)
             if not ok:
                 yield event.plain_result(f"踢人失败: {err}")
                 return
@@ -2797,7 +2797,11 @@ class Main(Star):
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_card', "设置名片", group_id=gid, user_id=int(user_id), card=card)
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_card', "设置名片", group_id=gid, user_id=uid, card=card)
             if not ok:
                 yield event.plain_result(f"设置失败: {err}")
                 return
@@ -3043,7 +3047,11 @@ class Main(Star):
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_special_title', "设置头衔", group_id=gid, user_id=int(user_id), special_title=title, duration=-1)
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_special_title', "设置头衔", group_id=gid, user_id=uid, special_title=title, duration=-1)
             if not ok:
                 yield event.plain_result(f"设置失败: {err}")
                 return
@@ -3127,7 +3135,11 @@ class Main(Star):
             if not client:
                 yield event.plain_result(err)
                 return
-            ok, err = await self._call_group_api(client, 'set_group_admin', "设置管理员", group_id=gid, user_id=int(user_id), enable=True)
+            uid = self._safe_int(user_id, 0)
+            if not uid:
+                yield event.plain_result("用户QQ号格式无效")
+                return
+            ok, err = await self._call_group_api(client, 'set_group_admin', "设置管理员", group_id=gid, user_id=uid, enable=True)
             if not ok:
                 yield event.plain_result(f"设置失败: {err}")
                 return

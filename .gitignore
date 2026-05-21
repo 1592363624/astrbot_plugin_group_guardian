@@ -13,6 +13,5 @@ venv/
 .venv/
 .DS_Store
 Thumbs.db
--/.git/
--
+.git/
 .gitmodules

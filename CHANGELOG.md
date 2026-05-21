@@ -37,6 +37,16 @@
 - **删除未使用的 import**：移除 `Reply` 和 `Image`（仅在死代码方法中使用）
 - **`_should_scan_message` 移除不可达分支**：移除始终为 True 的 `isinstance` 检查和不可达的 `return True`
 - **`int()` 转换安全化**：`_kick_member`、`_mute_member`、`_search_keyword_in_messages`、`_web_get_moderation_users`、批量撤回等方法中的 `int(group_id)` 改为 `_safe_int()`，防止 ValueError
+- **命令方法 `int()` 转换安全化**：`禁言`、`解禁`、`踢人`、`设置名片`、`头衔`、`设置管理` 共 6 个命令中 `int(user_id)` 改为 `_safe_int()`，非法 QQ 号不再导致命令崩溃
+- **`_is_admin` 类型转换统一**：`int(group_id)`/`int(user_id)` 改为 `_safe_int()`，与全局风格一致
+- **`_fetch_context_messages` 类型转换统一**：`int(group_id)` 改为 `_safe_int()`
+- **`recall_last` 参数解析安全化**：`int(args[1])` 改为 `_safe_int(args[1], 1)`
+- **`_mute_member` 配置读取安全化**：`int(config.get(...))` 改为 `_safe_int()`
+- **`cmd_ban` 时长参数安全化**：`int(args[2])` 改为 `_safe_int(args[2], 10)`
+- **`patterns.py` 重复正则清理**：移除 41 条完全重复的 AD_PATTERNS 条目（含 3 条出现 3 次的重复），AD_PATTERNS 从 558 条精简为 517 条
+- **移除未使用的 `Optional` import**：`typing.Optional` 在代码中从未使用
+- **`.gitignore` 修复**：修正 `-/.git/` 和 `-` 错误条目为 `.git/`
+- **`_log_moderation` 简化**：`valid_urls` 过滤逻辑从 5 行循环简化为列表推导式
 
 ### 文件清理
 
