@@ -770,7 +770,10 @@ function renderUsers(users) {
       '<div class="user-records">' +
         '<table class="record-table"><thead><tr><th>时间</th><th>群</th><th>消息</th><th>原因</th><th>操作</th></tr></thead><tbody>' +
         u.records.map(function(r) {
-          return '<tr><td>' + fmtTime(r.ts) + '</td><td>' + esc(r.group_id) + '</td><td title="' + esc(r.msg_preview) + '">' + esc((r.msg_preview || '').slice(0, 30)) + '</td><td>' + esc((r.reason || '').slice(0, 20)) + '</td><td><button class="btn btn-danger btn-sm" data-del="' + esc(r.id) + '">删除</button></td></tr>';
+          var msgCell = (r.msg_preview && r.msg_preview.length > 20) ?
+            '<td><span class="lin-msg-cell" data-lin-full="' + esc(r.msg_preview).replace(/"/g, '&quot;') + '"><span class="lin-msg-truncated">' + esc(r.msg_preview.slice(0, 20)) + '</span><span class="lin-msg-action"><svg viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg><span class="lin-msg-action-text">更多</span></span></span></td>' :
+            '<td>' + esc(r.msg_preview || '') + '</td>';
+          return '<tr><td>' + fmtTime(r.ts) + '</td><td>' + esc(r.group_id) + '</td>' + msgCell + '<td>' + esc((r.reason || '').slice(0, 20)) + '</td><td><button class="btn btn-danger btn-sm" data-del="' + esc(r.id) + '">删除</button></td></tr>';
         }).join('') + '</tbody></table></div></div>';
   }).join('');
 
@@ -791,6 +794,26 @@ function renderUsers(users) {
       loadUsers();
     });
   });
+
+  c.querySelectorAll('.lin-msg-action').forEach(function(action) {
+    action.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var cell = this.closest('.lin-msg-cell');
+      var truncated = cell.querySelector('.lin-msg-truncated');
+      var fullText = cell.getAttribute('data-lin-full');
+      if (cell.dataset.expanded === 'true') {
+        cell.dataset.expanded = 'false';
+        truncated.className = 'lin-msg-truncated';
+        truncated.textContent = fullText.slice(0, 20);
+        this.querySelector('.lin-msg-action-text').textContent = '更多';
+      } else {
+        cell.dataset.expanded = 'true';
+        truncated.className = 'lin-msg-full';
+        truncated.textContent = fullText;
+        this.querySelector('.lin-msg-action-text').textContent = '收起';
+      }
+    });
+  });
 }
 
 async function loadLogs() {
@@ -809,7 +832,7 @@ async function loadLogs() {
     return '<tr><td>' + fmtTime(l.ts) + '</td><td>' + esc(l.group_id) + '</td><td>' + esc(l.user_name) + '<br><span style="font-size:10px;color:var(--text-muted)">' + esc(l.user_id) + '</span></td><td>' + msgHtml + '</td><td><span class="badge ' + cls + '">' + esc(a) + '</span></td><td class="reason-cell" title="' + esc(l.reason) + '">' + esc((l.reason || '').slice(0, 30)) + '</td></tr>';
   }).join('');
   c.innerHTML = '<table class="log-table"><thead><tr><th>时间</th><th>群号</th><th>用户</th><th>消息</th><th>操作</th><th>原因</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  document.querySelectorAll('.lin-msg-action').forEach(function(action) {
+  c.querySelectorAll('.lin-msg-action').forEach(function(action) {
     action.addEventListener('click', function(e) {
       e.stopPropagation();
       var cell = this.closest('.lin-msg-cell');
@@ -969,7 +992,7 @@ function renderListSettings() {
 
 function renderListTags(list, type) {
   var cls = type === 'white' ? 'list-tag-white' : type === 'black' ? 'list-tag-black' : 'list-tag-user';
-  if (!list.length) return '<span style="font-size:12px;color:#909399">暂无</span>';
+  if (!list.length) return '<span style="font-size:12px;color:var(--text-muted)">暂无</span>';
   return list.map(function(v) {
     return '<span class="list-tag ' + cls + '">' + esc(String(v)) + '<button class="btn-remove" data-type="' + type + '" data-val="' + esc(String(v)) + '">&times;</button></span>';
   }).join('');
@@ -1104,6 +1127,8 @@ function init() {
   }
   $('#disclaimerAgreed').addEventListener('change', function() {
     updateLinDisclaimerStatus(this.checked);
+    var banner = $('#disclaimerBanner');
+    if (banner) banner.style.display = this.checked ? 'none' : 'block';
   });
   $('#modalOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
 
