@@ -1232,12 +1232,16 @@ function init() {
     return;
   }
   try {
-    await bridge.ready();
-    apiGet = bridge.apiGet.bind(bridge);
-    apiPost = bridge.apiPost.bind(bridge);
-    init();
+    if (bridge.ready) await bridge.ready();
   } catch(e) {
-    document.getElementById('statusText').textContent = '初始化失败';
+    console.warn('[GG] bridge.ready() failed:', e);
+  }
+  if (bridge.apiGet) apiGet = bridge.apiGet.bind(bridge);
+  if (bridge.apiPost) apiPost = bridge.apiPost.bind(bridge);
+  if (apiGet && apiPost) {
+    init();
+  } else {
+    document.getElementById('statusText').textContent = 'API 不可用';
     document.getElementById('statusDot').style.background = 'var(--danger)';
   }
 })();
