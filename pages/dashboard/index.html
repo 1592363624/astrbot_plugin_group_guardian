@@ -534,6 +534,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 var bridge = null;
 var apiGet = null;
 var apiPost = null;
+var _memStore = {};
+var ls = {
+  getItem: function(k) { try { return localStorage.getItem(k); } catch(e) { return _memStore[k] || null; } },
+  setItem: function(k, v) { try { localStorage.setItem(k, v); } catch(e) { _memStore[k] = v; } }
+};
 let CONFIG = {};
 let CURRENT_GROUP = null;
 let CURRENT_MEMBERS = [];
@@ -1262,7 +1267,7 @@ function init() {
     toast('导出成功', 'success');
   });
 
-  var savedTheme = localStorage.getItem('gg_theme') || 'light';
+  var savedTheme = ls.getItem('gg_theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
   function updateThemeUI(theme) {
     var lightIcon = document.querySelector('.theme-icon-light');
@@ -1283,7 +1288,7 @@ function init() {
     var current = document.documentElement.getAttribute('data-theme');
     var next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('gg_theme', next);
+    ls.setItem('gg_theme', next);
     updateThemeUI(next);
   });
 
