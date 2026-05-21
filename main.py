@@ -351,18 +351,22 @@ class Main(Star):
             for log in self._moderation_logs:
                 if log.get("id") == target_id:
                     msg = log.get("msg_text", "")
-                    logger.info(f"[GroupMgr] log_detail id={target_id} msg_text_len={len(msg)}")
-                    resp = jsonify({
+                    total = len(msg)
+                    chunk_size = 400
+                    chunks = []
+                    for i in range(0, total, chunk_size):
+                        chunks.append(msg[i:i + chunk_size])
+                    return jsonify({
                         "status": "success",
                         "data": {
-                            "msg_text": msg,
+                            "total_len": total,
+                            "chunk_count": len(chunks),
                             "image_urls": log.get("image_urls", []),
                             "reason": log.get("reason", ""),
                             "action": log.get("action", ""),
+                            "chunks": chunks,
                         }
                     })
-                    resp.headers["Access-Control-Allow-Origin"] = "*"
-                    return resp
             return jsonify({"status": "error", "message": "未找到该日志"})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
