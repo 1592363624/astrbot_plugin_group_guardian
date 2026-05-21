@@ -47,6 +47,7 @@
 - **移除未使用的 `Optional` import**：`typing.Optional` 在代码中从未使用
 - **`.gitignore` 修复**：修正 `-/.git/` 和 `-` 错误条目为 `.git/`
 - **`_log_moderation` 简化**：`valid_urls` 过滤逻辑从 5 行循环简化为列表推导式
+- **QQ收藏消息识别逻辑修复**：转发消息中的QQ收藏检测不再依赖发送者昵称包含"QQ收藏"字样，改为统一使用 `_is_qq_favorite_text` 和 `_check_dict_seg_qq_favorite` 检测消息内容特征（`sharechain.qq.com`、JSON/app数据中的收藏标识），新增 `json` 类型消息段的收藏检测
 
 ### 文件清理
 

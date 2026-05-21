@@ -1990,8 +1990,6 @@ class Main(Star):
                     sender = msg.get('sender', {})
                     nickname = sender.get('nickname', '未知') if isinstance(sender, dict) else '未知'
                     card = sender.get('card', '') if isinstance(sender, dict) else ''
-                    if 'QQ收藏' in nickname or 'QQ收藏' in card or 'qq收藏' in nickname.lower() or 'qq收藏' in card.lower():
-                        is_qq_favorite = True
                     content = msg.get('message', '')
                     if isinstance(content, list):
                         parts = []
@@ -2000,24 +1998,34 @@ class Main(Star):
                                 ct = c_seg.get('type', '')
                                 cd = c_seg.get('data', {}) or {}
                                 if ct == 'text':
-                                    parts.append(cd.get('text', ''))
+                                    text_val = cd.get('text', '')
+                                    parts.append(text_val)
+                                    if self._is_qq_favorite_text(text_val):
+                                        is_qq_favorite = True
                                 elif ct == 'image':
                                     parts.append('[图片]')
                                 elif ct == 'forward':
                                     parts.append('[嵌套转发]')
+                                elif ct == 'json':
+                                    json_data = cd.get('data', '')
+                                    if self._is_qq_favorite_text(json_data if isinstance(json_data, str) else str(json_data)):
+                                        is_qq_favorite = True
+                                    parts.append(f'[{ct}]')
                                 elif ct == 'app':
                                     app_content = cd.get('content', '')
-                                    if isinstance(app_content, str) and ('QQ收藏' in app_content or 'qq收藏' in app_content.lower()):
+                                    if self._is_qq_favorite_text(app_content if isinstance(app_content, str) else str(app_content)):
                                         is_qq_favorite = True
                                     parts.append(f'[{ct}]')
                                 else:
                                     parts.append(f'[{ct}]')
+                                if not is_qq_favorite and self._check_dict_seg_qq_favorite(c_seg):
+                                    is_qq_favorite = True
                             else:
                                 parts.append(str(c_seg))
                         content_text = ''.join(parts)
                     else:
                         content_text = str(content)
-                        if isinstance(content, str) and ('QQ收藏' in content or 'qq收藏' in content.lower()):
+                        if self._is_qq_favorite_text(content_text):
                             is_qq_favorite = True
                     if content_text.strip():
                         all_texts.append(f"[转发]{nickname}: {content_text.strip()}")

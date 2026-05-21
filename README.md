@@ -132,13 +132,6 @@ AI 可通过以下工具自动执行群管操作，无需手动输入指令：
 2. 在 AstrBot WebUI → 插件 → 安装插件 → 上传插件文件
 3. 重启或重载插件
 
-### 方式三：Git安装
-
-```bash
-cd /AstrBot/data/plugins
-git clone https://github.com/zcj-ui/astrbot_plugin_group_guardian.git
-```
-
 ***
 
 ## AI 人格提示词推荐
