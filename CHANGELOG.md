@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.9.8] - 2026-05-22
+
+### Bug 修复
+
+- **表情包识别精度优化**：`_is_sticker_image` 中 `face` 关键词从简单子串匹配改为路径段匹配（`/face/`、`/face?`、`&face=`、`?face=`），避免误判包含 "surface"、"interface" 等词的普通图片 URL
+- **`_web_get_moderation_users` 并发安全修复**：直接引用 `deque` 改为 `list()` 快照，防止迭代过程中数据被修改
+- **`_web_get_logs` 参数解析修复**：`int()` 转换添加 `ValueError`/`TypeError` 捕获，非法 `limit` 参数不再导致 500 错误
+- **`_save_logs` 节流计时修复**：无事件循环时不再更新 `_last_log_save`，避免跳过写入后节流计时器仍被更新导致日志长时间不持久化
+- **`_stats_cache` 内存泄漏修复**：`group_stats`（上限500）、`user_stats`（上限2000）、`user_names`（上限2000）添加容量上限，超限时自动淘汰计数最低的条目
+- **`_invalidate_stats_cache` 完整性修复**：重置时同步清理 `group_stats`、`user_stats`、`user_names`，避免脏数据残留
+- **`_client` 缓存失效机制**：`_recall_msg`、`_kick_member`、`_mute_member` 调用失败时清除 `_client` 缓存，下次调用时重新获取有效连接
+- **LLM 审核 JSON 提取优化**：优先匹配含 `"violation"` 键的 JSON 对象，避免误匹配 LLM 返回中其他花括号内容
+- **前端 XSS 防护**：图片 URL 插入 `src` 属性时使用 `escAttr` 转义，防止恶意 URL 注入
+- **死代码清理**：移除未使用的 `has_sticker` 变量
+
+### 文件清理
+
+- 删除根目录 `index.html`（旧版 WebUI 残留）
+- 删除 `ui_templates.md`（UI 模板参考文件）
+
 ## [1.9.7] - 2026-05-21
 
 ### WebUI 全面重构

@@ -28,7 +28,7 @@ from .patterns import _POLITICAL_WHITELIST, SWEAR_PATTERNS, AD_PATTERNS
 _PLUGIN_NAME = "astrbot_plugin_group_guardian"
 
 
-@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.7", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
+@register("astrbot_plugin_group_guardian", "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", "v1.9.8", "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
 class Main(Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
@@ -127,9 +127,9 @@ class Main(Star):
             try:
                 loop = asyncio.get_running_loop()
                 loop.run_in_executor(None, self._write_logs_sync, p, data)
+                self._last_log_save = time.time()
             except RuntimeError:
                 logger.warning("[GroupMgr] 无事件循环，跳过日志写入（将在下次可用时保存）")
-            self._last_log_save = time.time()
         except Exception:
             logger.exception("save_logs failed")
 
@@ -329,12 +329,15 @@ class Main(Star):
         return jsonify({"status": "success", "data": self._lexicon})
 
     async def _web_get_logs(self):
-        limit = min(int(quart_request.args.get("limit", 50)), 200)
+        try:
+            limit = min(int(quart_request.args.get("limit", 50)), 200)
+        except (ValueError, TypeError):
+            limit = 50
         logs = list(self._moderation_logs)[-limit:]
         return jsonify({"status": "success", "data": logs})
 
     async def _web_get_moderation_users(self):
-        logs = self._moderation_logs
+        logs = list(self._moderation_logs)
         action_filter = quart_request.args.get("action", "").strip()
         user_map = {}
         for log in logs:
@@ -1009,6 +1012,9 @@ class Main(Star):
 
     def _invalidate_stats_cache(self):
         self._stats_cache["today_start"] = 0
+        self._stats_cache["group_stats"] = {}
+        self._stats_cache["user_stats"] = {}
+        self._stats_cache.pop("user_names", None)
 
     def _log_moderation(self, group_id: str, user_id: str, user_name: str, msg_text: str, action: str, reason: str = "", image_urls: list = None):
         filtered_urls = []
@@ -1035,13 +1041,28 @@ class Main(Star):
         if sc["today_start"] == today_start:
             sc["total"] += 1
             if user_id and user_name:
-                sc.setdefault("user_names", {})[user_id] = user_name
+                un = sc.setdefault("user_names", {})
+                un[user_id] = user_name
+                if len(un) > 2000:
+                    del_keys = list(un.keys())[:len(un) - 1500]
+                    for k in del_keys:
+                        del un[k]
             if "撤回" in action:
                 sc["blocked"] += 1
                 if group_id:
-                    sc["group_stats"][group_id] = sc["group_stats"].get(group_id, 0) + 1
+                    gs = sc["group_stats"]
+                    gs[group_id] = gs.get(group_id, 0) + 1
+                    if len(gs) > 500:
+                        del_keys = sorted(gs, key=gs.get)[:len(gs) - 400]
+                        for k in del_keys:
+                            del gs[k]
                 if user_id:
-                    sc["user_stats"][user_id] = sc["user_stats"].get(user_id, 0) + 1
+                    us = sc["user_stats"]
+                    us[user_id] = us.get(user_id, 0) + 1
+                    if len(us) > 2000:
+                        del_keys = sorted(us, key=us.get)[:len(us) - 1500]
+                        for k in del_keys:
+                            del us[k]
             elif "放行" in action:
                 sc["passed"] += 1
         now = time.time()
@@ -2126,7 +2147,9 @@ class Main(Star):
         try:
             async with self._llm_semaphore:
                 llm_response = await self._call_llm_safe(system_prompt, prompt)
-            json_match = re.search(r'\{.*?\}', llm_response, re.DOTALL)
+            json_match = re.search(r'\{[^{}]*"violation"[^{}]*\}', llm_response, re.DOTALL)
+            if not json_match:
+                json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
                 return result
@@ -2725,6 +2748,7 @@ class Main(Star):
             await client.call_action('delete_msg', message_id=mid)
         except Exception as e:
             logger.warning(f"[GroupMgr] 撤回消息失败: {e}")
+            self._client = None
 
     async def _kick_member(self, event: AiocqhttpMessageEvent):
         group_id = self._get_group_id(event)
@@ -2738,6 +2762,7 @@ class Main(Star):
             await client.call_action('set_group_kick', group_id=int(group_id), user_id=int(user_id))
         except Exception as e:
             logger.warning(f"[GroupMgr] 踢人失败: {e}")
+            self._client = None
 
     async def _mute_member(self, event: AiocqhttpMessageEvent, duration: int = None):
         group_id = self._get_group_id(event)
@@ -2752,6 +2777,7 @@ class Main(Star):
             await client.call_action('set_group_ban', group_id=int(group_id), user_id=int(user_id), duration=ban_duration)
         except Exception as e:
             logger.warning(f"[GroupMgr] 禁言失败: {e}")
+            self._client = None
 
     @filter.command("字数统计")
     async def word_count(self, event: AstrMessageEvent):
