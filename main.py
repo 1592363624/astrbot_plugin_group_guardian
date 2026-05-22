@@ -389,7 +389,6 @@ class Main(Star):
                     chunk_size = 400
                     start = idx * chunk_size
                     piece = msg[start:start + chunk_size]
-                    logger.debug(f"[GroupMgr] log_chunk id={target_id} chunk={idx} piece_len={len(piece)} total_msg_len={len(msg)}")
                     return jsonify({"status": "success", "data": {"i": idx, "t": piece}})
             return jsonify({"status": "error", "message": "未找到该日志"})
         except Exception as e:
@@ -1124,7 +1123,6 @@ class Main(Star):
         self._stats_cache.pop("user_names", None)
 
     def _log_moderation(self, group_id: str, user_id: str, user_name: str, msg_text: str, action: str, reason: str = "", image_urls: list = None):
-        logger.debug(f"[GroupMgr] _log_moderation msg_text_len={len(msg_text)} action={action}")
         valid_urls = [u for u in (image_urls or []) if u][:5]
         log_entry = {
             "id": len(self._moderation_logs),
@@ -2399,12 +2397,11 @@ class Main(Star):
                 logger.info(f"[GroupMgr] OCR开始识别 {len(ocr_urls)} 张图片")
                 ocr_text = await self._ocr_images(event, ocr_urls)
                 if ocr_text:
-                    logger.info(f"[GroupMgr] OCR原始结果 len={len(ocr_text)}")
                     if text:
                         text = text + '\n[OCR识图内容]\n' + ocr_text
                     else:
                         text = '[OCR识图内容]\n' + ocr_text
-                    logger.info(f"[GroupMgr] OCR拼接后 text len={len(text)}")
+                    logger.info(f"[GroupMgr] OCR识别结果: {ocr_text[:100]}")
                 else:
                     logger.debug(f"[GroupMgr] OCR识别返回空结果")
 

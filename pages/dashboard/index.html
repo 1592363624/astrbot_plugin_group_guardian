@@ -565,6 +565,58 @@ function escAttr(s) {
   return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function renderMessageDetail(fullText, imgUrls) {
+  var body = $('#modalBody');
+  body.innerHTML = '';
+  if (imgUrls && imgUrls.length) {
+    var imgSection = document.createElement('div');
+    imgSection.style.marginBottom = '12px';
+    imgUrls.forEach(function(u) {
+      if (!u) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'msg-img-wrap';
+      var img = document.createElement('img');
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '6px';
+      img.style.cursor = 'pointer';
+      img.style.display = 'block';
+      img.addEventListener('click', function() { window.open(this.src); });
+      var fallback = document.createElement('div');
+      fallback.style.display = 'none';
+      fallback.style.padding = '8px 12px';
+      fallback.style.background = 'var(--info-light)';
+      fallback.style.borderRadius = '6px';
+      fallback.style.color = 'var(--text-muted)';
+      fallback.style.fontSize = '12px';
+      fallback.style.textAlign = 'center';
+      fallback.textContent = '图片加载失败';
+      img.addEventListener('error', function() {
+        this.style.display = 'none';
+        fallback.style.display = 'block';
+      });
+      img.setAttribute('src', u);
+      wrap.appendChild(img);
+      wrap.appendChild(fallback);
+      imgSection.appendChild(wrap);
+    });
+    var hint = document.createElement('div');
+    hint.style.fontSize = '11px';
+    hint.style.color = 'var(--text-muted)';
+    hint.style.marginTop = '4px';
+    hint.textContent = '点击图片可在新窗口查看原图';
+    imgSection.appendChild(hint);
+    body.appendChild(imgSection);
+  }
+  var text = document.createElement('div');
+  text.style.whiteSpace = 'pre-wrap';
+  text.style.wordBreak = 'break-word';
+  text.style.lineHeight = '1.7';
+  text.style.fontSize = '13px';
+  text.style.color = 'var(--text-primary)';
+  text.textContent = fullText || '';
+  body.appendChild(text);
+}
+
 function fmtTime(ts) {
   if (!ts) return '';
   var d = new Date(ts * 1000);
@@ -887,29 +939,16 @@ function renderUsers(users) {
       $('#btnMsgClose2').addEventListener('click', closeModal);
       try {
         var detail = await safeGet('log_detail', { id: lid });
-        console.log('[GG] detail:', JSON.stringify(detail).slice(0, 500));
         if (detail && detail.status === 'error') { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
         var d = detail || {};
         var chunkCount = d.chunk_count || 0;
-        console.log('[GG] chunk_count=' + chunkCount + ' total_len=' + (d.total_len || 0));
         var imgUrls = d.image_urls || [];
         var parts = [];
         for (var ci = 0; ci < chunkCount; ci++) {
           var cr = await safeGet('log_chunk', { id: lid, chunk: ci });
-          console.log('[GG] chunk[' + ci + '] len=' + (cr && cr.t ? cr.t.length : 0) + ' raw=' + JSON.stringify(cr).slice(0, 200));
           if (cr && cr.t) parts.push(cr.t);
         }
-        var fullText = parts.join('');
-        console.log('[GG] final len=' + fullText.length + ' last80=' + fullText.slice(-80));
-        var imgHtml = '';
-        if (imgUrls.length) {
-          imgUrls.forEach(function(u) {
-            if (u) imgHtml += '<div class="msg-img-wrap"><img src="' + escAttr(u) + '" style="max-width:100%;border-radius:6px;cursor:pointer;display:block" onclick="window.open(this.src)" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" /><div style="display:none;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;color:var(--text-muted);font-size:12px;text-align:center">图片链接已过期</div></div>';
-          });
-        }
-        var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">图片链接可能随时间过期，点击图片可在新窗口查看原图</div></div>' : '') +
-          '<div style="white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:13px;color:var(--text-primary)">' + esc(fullText) + '</div>';
-        $('#modalBody').innerHTML = bodyHtml;
+        renderMessageDetail(parts.join(''), imgUrls);
       } catch(ex) { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">加载失败: ' + esc(String(ex)) + '</p>'; }
     });
   });
@@ -945,29 +984,16 @@ async function loadLogs() {
       $('#btnMsgClose').addEventListener('click', closeModal);
       try {
         var detail = await safeGet('log_detail', { id: lid });
-        console.log('[GG2] detail:', JSON.stringify(detail).slice(0, 500));
         if (detail && detail.status === 'error') { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
         var d = detail || {};
         var chunkCount = d.chunk_count || 0;
-        console.log('[GG2] chunk_count=' + chunkCount + ' total_len=' + (d.total_len || 0));
         var imgUrls = d.image_urls || [];
         var parts = [];
         for (var ci = 0; ci < chunkCount; ci++) {
           var cr = await safeGet('log_chunk', { id: lid, chunk: ci });
-          console.log('[GG2] chunk[' + ci + '] len=' + (cr && cr.t ? cr.t.length : 0) + ' raw=' + JSON.stringify(cr).slice(0, 200));
           if (cr && cr.t) parts.push(cr.t);
         }
-        var fullText = parts.join('');
-        console.log('[GG2] final len=' + fullText.length + ' last80=' + fullText.slice(-80));
-        var imgHtml = '';
-        if (imgUrls.length) {
-          imgUrls.forEach(function(u) {
-            if (u) imgHtml += '<div class="msg-img-wrap"><img src="' + escAttr(u) + '" style="max-width:100%;border-radius:6px;cursor:pointer;display:block" onclick="window.open(this.src)" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\'" /><div style="display:none;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;color:var(--text-muted);font-size:12px;text-align:center">图片链接已过期</div></div>';
-          });
-        }
-        var bodyHtml = (imgHtml ? '<div style="margin-bottom:12px">' + imgHtml + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">图片链接可能随时间过期，点击图片可在新窗口查看原图</div></div>' : '') +
-          '<div style="white-space:pre-wrap;word-break:break-word;line-height:1.7;font-size:13px;color:var(--text-primary)">' + esc(fullText) + '</div>';
-        $('#modalBody').innerHTML = bodyHtml;
+        renderMessageDetail(parts.join(''), imgUrls);
       } catch(ex) { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">加载失败: ' + esc(String(ex)) + '</p>'; }
     });
   });
