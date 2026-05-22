@@ -1,4 +1,3 @@
-
 __pycache__/
 *.pyc
 *.pyo
@@ -11,6 +10,7 @@ build/
 env/
 venv/
 .venv/
+.mypy_cache/
 .DS_Store
 Thumbs.db
 .git/
