@@ -639,8 +639,8 @@ class WebMixin:
         try:
             data = await quart_request.get_json(force=True, silent=True) or {}
             confirm = str(data.get("confirm", "")).strip()
-            if confirm != "我确认迁移并删除旧日志文件":
-                return jsonify({"status": "error", "message": "确认文本不匹配，迁移未执行"})
+            if not confirm:
+                return jsonify({"status": "error", "message": "请确认后再执行迁移"})
             result = self._storage.migrate_legacy(delete_logs=True)
             self._lexicon = self._storage.load_lexicon()
             self._compiled_lexicon = self._compile_lexicon()
