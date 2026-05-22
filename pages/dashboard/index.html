@@ -1114,12 +1114,23 @@ async function loadSettings() {
   loadMigrationStatus();
 }
 
-async function loadMigrationStatus() {
+async function loadMigrationStatus(showToast) {
   var box = $('#migrationStatus');
   if (!box) return;
+  var btn = $('#btnRefreshMigration');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '刷新中...';
+  }
+  box.textContent = '正在刷新迁移状态...';
   var res = await safeGet('migration/status');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '刷新状态';
+  }
   if (!res || res.status === 'error') {
     box.textContent = '迁移状态读取失败：' + ((res && res.message) || '未知错误');
+    if (showToast) toast('迁移状态读取失败', 'error');
     return;
   }
   var s = res;
@@ -1130,6 +1141,7 @@ async function loadMigrationStatus() {
     '旧日志文件：' + (s.legacy_logs_exists ? '存在，' + (s.legacy_log_count || 0) + ' 条' : '不存在'),
     '内置词库 DB：' + (s.seed_lexicon_db_exists ? '存在' : '不存在')
   ].join('\n');
+  if (showToast) toast('迁移状态已刷新', 'success');
 }
 
 async function runMigration() {
@@ -1325,7 +1337,7 @@ async function init() {
   $('#btnRefreshLogs').addEventListener('click', loadLogs);
   $('#btnSaveSettings').addEventListener('click', saveSettings);
   var btnRefreshMigration = $('#btnRefreshMigration');
-  if (btnRefreshMigration) btnRefreshMigration.addEventListener('click', loadMigrationStatus);
+  if (btnRefreshMigration) btnRefreshMigration.addEventListener('click', function() { loadMigrationStatus(true); });
   var btnRunMigration = $('#btnRunMigration');
   if (btnRunMigration) btnRunMigration.addEventListener('click', runMigration);
   $('#btnModalClose').addEventListener('click', closeModal);
