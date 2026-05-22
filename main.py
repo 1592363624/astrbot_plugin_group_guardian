@@ -354,7 +354,7 @@ class Main(Star):
                     msg = log.get("msg_text", "")
                     chunk_size = 400
                     chunk_count = (len(msg) + chunk_size - 1) // chunk_size if msg else 0
-                    logger.info(f"[GroupMgr] log_detail id={target_id} msg_len={len(msg)} chunk_count={chunk_count}")
+                    logger.debug(f"[GroupMgr] log_detail id={target_id} msg_len={len(msg)} chunk_count={chunk_count}")
                     return jsonify({
                         "status": "success",
                         "data": {
@@ -389,7 +389,7 @@ class Main(Star):
                     chunk_size = 400
                     start = idx * chunk_size
                     piece = msg[start:start + chunk_size]
-                    logger.info(f"[GroupMgr] log_chunk id={target_id} chunk={idx} piece_len={len(piece)} total_msg_len={len(msg)}")
+                    logger.debug(f"[GroupMgr] log_chunk id={target_id} chunk={idx} piece_len={len(piece)} total_msg_len={len(msg)}")
                     return jsonify({"status": "success", "data": {"i": idx, "t": piece}})
             return jsonify({"status": "error", "message": "未找到该日志"})
         except Exception as e:
@@ -408,7 +408,7 @@ class Main(Star):
             for log in self._moderation_logs:
                 if log.get("id") == target_id:
                     raw = log.get("msg_text", "")
-                    logger.info(f"[GroupMgr] log_raw_text id={target_id} len={len(raw)}")
+                    logger.debug(f"[GroupMgr] log_raw_text id={target_id} len={len(raw)}")
                     return raw, 200, _cors
             return "未找到该日志", 404, _cors
         except Exception as e:
@@ -846,23 +846,20 @@ class Main(Star):
 
     def _compile_lexicon(self) -> Dict[str, List[re.Pattern]]:
         compiled = {}
-        enable_political = self.config.get("lexicon_political_enabled", True)
-        enable_porn = self.config.get("lexicon_porn_enabled", True)
-        enable_violent = self.config.get("lexicon_violent_enabled", True)
-        enable_reactionary = self.config.get("lexicon_reactionary_enabled", True)
-        enable_weapons = self.config.get("lexicon_weapons_enabled", True)
-        enable_corruption = self.config.get("lexicon_corruption_enabled", True)
-        enable_illegal_url = self.config.get("lexicon_illegal_url_enabled", True)
-        enable_other = self.config.get("lexicon_other_enabled", True)
+        cfg = self.config
 
+        def _enabled(key: str) -> bool:
+            return cfg.get(f"lexicon_{key}_enabled", True)
+
+        enable_other = _enabled("other")
         switch_map = {
-            "political": enable_political,
-            "porn": enable_porn,
-            "violent_terror": enable_violent,
-            "reactionary": enable_reactionary,
-            "weapons": enable_weapons,
-            "corruption": enable_corruption,
-            "illegal_url": enable_illegal_url,
+            "political": _enabled("political"),
+            "porn": _enabled("porn"),
+            "violent_terror": _enabled("violent"),
+            "reactionary": _enabled("reactionary"),
+            "weapons": _enabled("weapons"),
+            "corruption": _enabled("corruption"),
+            "illegal_url": _enabled("illegal_url"),
             "other": enable_other,
             "supplement": enable_other,
             "livelihood": enable_other,
@@ -1093,6 +1090,17 @@ class Main(Star):
             return text[:max_chars]
         return text[:limit] + suffix
 
+    # 消息段类型 -> (字段名, 默认值/格式化函数) 的映射
+    _SEG_FORMATTERS = {
+        'text':        lambda d: d.get('text', ''),
+        'image':       lambda d: d.get('summary', '[图片]') or '[图片]',
+        'at':          lambda d: f"@{d.get('qq', '')}",
+        'reply':       lambda d: f"[回复:{d.get('id', '')}]",
+        'face':        lambda d: "[表情]",
+        'market_face': lambda d: "[商城表情]",
+        'forward':     lambda d: '[合并转发消息]',
+    }
+
     def _format_message_content(self, raw_message) -> str:
         if raw_message is None:
             return '[空消息]'
@@ -1105,22 +1113,8 @@ class Main(Star):
                 continue
             t = seg.get('type', '')
             d = seg.get('data', {}) or {}
-            if t == 'text':
-                parts.append(d.get('text', ''))
-            elif t == 'image':
-                parts.append(d.get('summary', '[图片]') or '[图片]')
-            elif t == 'at':
-                parts.append(f"@{d.get('qq', '')}")
-            elif t == 'reply':
-                parts.append(f"[回复:{d.get('id', '')}]")
-            elif t == 'face':
-                parts.append("[表情]")
-            elif t == 'market_face':
-                parts.append("[商城表情]")
-            elif t == 'forward':
-                parts.append('[合并转发消息]')
-            else:
-                parts.append(f"[{t}]")
+            formatter = self._SEG_FORMATTERS.get(t)
+            parts.append(formatter(d) if formatter else f"[{t}]")
         return ''.join(parts) if parts else '[空消息]'
 
     def _invalidate_stats_cache(self):
@@ -1130,7 +1124,7 @@ class Main(Star):
         self._stats_cache.pop("user_names", None)
 
     def _log_moderation(self, group_id: str, user_id: str, user_name: str, msg_text: str, action: str, reason: str = "", image_urls: list = None):
-        logger.info(f"[GroupMgr] _log_moderation msg_text_len={len(msg_text)} action={action}")
+        logger.debug(f"[GroupMgr] _log_moderation msg_text_len={len(msg_text)} action={action}")
         valid_urls = [u for u in (image_urls or []) if u][:5]
         log_entry = {
             "id": len(self._moderation_logs),
@@ -1641,7 +1635,7 @@ class Main(Star):
             if not files and not folders:
                 yield event.plain_result("根目录下没有文件或文件夹")
                 return
-            lines = [f"群 {group_id} 根目录："]
+            lines = [f"群 {gid} 根目录："]
             if folders:
                 lines.append(f"  {len(folders)}个文件夹")
                 for f in folders[:10]:
@@ -2006,7 +2000,7 @@ class Main(Star):
         for p in self._compiled_ad:
             m = p.search(text)
             if m:
-                logger.info(f"[GroupMgr] 正则广告命中: {m.group()}")
+                logger.debug(f"[GroupMgr] 正则广告命中: {m.group()}")
                 return True
         return False
 
@@ -2457,12 +2451,10 @@ class Main(Star):
                 hit_types[cat] = hit_types[cat] or hit
 
         should_check = any(hit_types.values())
-        logger.info(f"[GroupMgr] hit_types={hit_types}, should_check={should_check}")
         if not should_check:
             return
 
         llm_enabled = self._cfg("llm_moderation_enabled", True)
-        logger.info(f"[GroupMgr] 进入审核流程, llm_moderation_enabled={llm_enabled}")
 
         if not llm_enabled:
             reason = "触发规则: " + ", ".join(k for k, v in hit_types.items() if v)
@@ -2479,19 +2471,19 @@ class Main(Star):
                 logger.warning(f"[GroupMgr] 自动审核出错: {e}")
             return
 
-        logger.info(f"[GroupMgr] 开始调用LLM审核...")
+        logger.debug(f"[GroupMgr] 开始调用LLM审核...")
         llm_result = await self._call_llm_for_moderation(event, text, hit_types, group_id=group_id)
-        logger.info(f"[GroupMgr] LLM返回结果: {llm_result}")
+        logger.debug(f"[GroupMgr] LLM返回结果: {llm_result}")
         is_violation = llm_result.get("violation", False)
         reason = llm_result.get("reason", "无理由")
 
+        hit_summary = ', '.join(k for k, v in hit_types.items() if v)
         if not is_violation:
-            logger.info(f"[GroupMgr] LLM审核通过: {user_name}({user_id}) in {group_id} | 命中类型={{{', '.join(k for k, v in hit_types.items() if v)}}} | 原因={reason}")
-            logger.info(f"[GroupMgr] LLM放行时 text len={len(text)} last50={text[-50:]}")
+            logger.info(f"[GroupMgr] LLM审核通过: {user_name}({user_id}) in {group_id} | 命中类型={{{hit_summary}}} | 原因={reason}")
             self._log_moderation(group_id, user_id, user_name, text, "LLM放行", reason, image_urls)
             return
 
-        logger.info(f"[GroupMgr] LLM审核拦截: {user_name}({user_id}) in {group_id} | 命中类型={{{', '.join(k for k, v in hit_types.items() if v)}}} | 原因={reason}")
+        logger.info(f"[GroupMgr] LLM审核拦截: {user_name}({user_id}) in {group_id} | 命中类型={{{hit_summary}}} | 原因={reason}")
 
         try:
             msg_id = str(getattr(getattr(event, 'message_obj', None), 'message_id', ''))
@@ -2674,7 +2666,7 @@ class Main(Star):
             owners = sum(1 for m in members if m.get('role') == 'owner')
             regular = total - admins
             stats = (
-                f"群 {group_id} 统计:\n"
+                f"群 {gid} 统计:\n"
                 f"  群主: {owners}人\n"
                 f"  管理员: {admins - owners}人\n"
                 f"  普通成员: {regular}人\n"
