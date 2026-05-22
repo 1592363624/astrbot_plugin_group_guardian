@@ -2454,13 +2454,17 @@ class Main(Star):
         lexicon_result = self._check_lexicon(text)
         for cat, hit in lexicon_result.items():
             if cat in hit_types:
-                hit_types[cat] = hit
+                hit_types[cat] = hit_types[cat] or hit
 
         should_check = any(hit_types.values())
+        logger.info(f"[GroupMgr] hit_types={hit_types}, should_check={should_check}")
         if not should_check:
             return
 
-        if not self._cfg("llm_moderation_enabled", True):
+        llm_enabled = self._cfg("llm_moderation_enabled", True)
+        logger.info(f"[GroupMgr] 进入审核流程, llm_moderation_enabled={llm_enabled}")
+
+        if not llm_enabled:
             reason = "触发规则: " + ", ".join(k for k, v in hit_types.items() if v)
             logger.info(f"[GroupMgr] {user_name}({user_id}) in {group_id} -> {reason}")
             try:
@@ -2475,7 +2479,9 @@ class Main(Star):
                 logger.warning(f"[GroupMgr] 自动审核出错: {e}")
             return
 
+        logger.info(f"[GroupMgr] 开始调用LLM审核...")
         llm_result = await self._call_llm_for_moderation(event, text, hit_types, group_id=group_id)
+        logger.info(f"[GroupMgr] LLM返回结果: {llm_result}")
         is_violation = llm_result.get("violation", False)
         reason = llm_result.get("reason", "无理由")
 
