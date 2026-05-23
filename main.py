@@ -14,7 +14,7 @@ from .constants import PLUGIN_NAME, PLUGIN_VERSION
 from .llm_tools import LlmToolsMixin
 from .moderation import ModerationMixin
 from .onebot import OneBotMixin
-from .patterns import AD_PATTERNS, SWEAR_PATTERNS
+from .patterns import AD_PATTERNS as _AD_PATTERNS_SEED, SWEAR_PATTERNS as _SWEAR_PATTERNS_SEED
 from .storage import SQLiteStorage
 from .utils import UtilitiesMixin
 from .web import WebMixin
@@ -49,9 +49,11 @@ class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin
         self.user_black_list = [str(u).strip() for u in (_ubl if isinstance(_ubl, list) else [_ubl]) if u]
         self._user_black_set = set(self.user_black_list)
         self.auto_moderate_enabled = self.config.get("auto_moderate_enabled", True)
-        # 预设正则放缩编译为已编译 Pattern 对象，每次审核时直接 search 而非 recompile
-        self._compiled_swear = self._build_combined_regex(SWEAR_PATTERNS)
-        self._compiled_ad = self._build_combined_regex(AD_PATTERNS)
+        # 正则规则从 DB 加载，patterns.py 中的定义仅在首次初始化时作为种子数据使用。
+        _swear_list = self._storage.load_moderation_rules("swear")
+        _ad_list = self._storage.load_moderation_rules("ad")
+        self._compiled_swear = self._build_combined_regex(_swear_list)
+        self._compiled_ad = self._build_combined_regex(_ad_list)
         # 外置词库：从 SQLite lexicon_db 逐类读入，再按分类 key 编译为排他 Pattern 列表
         self._lexicon = self._load_lexicon()
         self._compiled_lexicon = self._compile_lexicon()

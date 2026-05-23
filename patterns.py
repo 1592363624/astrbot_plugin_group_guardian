@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""内置正则规则和政治敏感词白名单。
+"""种子正则规则 —— 仅用于首次初始化时导入 SQLite moderation_rules 表。
 
-这里只放静态规则。需要运行时可配置的词库请使用 lexicon.db 和 storage.py。
+运行时正则从 group_guardian.db 加载，修改此文件后需清空 moderation_rules 表并重载插件才能生效。
+动态增删规则请使用 WebUI 或直接操作数据库。
 """
 
 _POLITICAL_WHITELIST = {

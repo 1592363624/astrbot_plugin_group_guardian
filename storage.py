@@ -27,6 +27,8 @@ class SQLiteStorage:
         with self._connect() as conn:
             self._create_tables(conn)
         self._ensure_seed_lexicon()
+        from .patterns import SWEAR_PATTERNS, AD_PATTERNS
+        self.seed_moderation_rules({"swear": SWEAR_PATTERNS, "ad": AD_PATTERNS})
 
     @contextmanager
     def _connect(self):
@@ -86,6 +88,17 @@ class SQLiteStorage:
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lexicon_category ON lexicon_keywords(category)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lexicon_keyword ON lexicon_keywords(keyword)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS moderation_rules ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "category TEXT NOT NULL, "
+            "pattern TEXT NOT NULL, "
+            "enabled INTEGER NOT NULL DEFAULT 1, "
+            "description TEXT, "
+            "UNIQUE(category, pattern)"
+            ")"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON moderation_rules(category)")
         conn.commit()
 
     def _ensure_seed_lexicon(self) -> None:
@@ -96,6 +109,42 @@ class SQLiteStorage:
             imported = self.import_lexicon_db(self.seed_lexicon_db_path)
             if imported:
                 logger.info(f"[GroupMgr] 已从 lexicon.db 导入词库: {imported} 条")
+
+    def seed_moderation_rules(self, rules: Dict[str, List[str]]) -> None:
+        # 将 patterns.py 中的正则规则写入 moderation_rules 表，已有则不重复导入。
+        if self.count_moderation_rules() > 0:
+            return
+        with self._connect() as conn:
+            for category, patterns in rules.items():
+                for pattern in patterns:
+                    try:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO moderation_rules(category, pattern) VALUES(?, ?)",
+                            (category, pattern),
+                        )
+                    except Exception:
+                        logger.debug(f"[GroupMgr] 跳过无效规则 [{category}]: {pattern[:50]}")
+            conn.commit()
+        logger.info(f"[GroupMgr] 已导入 {len(rules)} 类正则规则到数据库")
+
+    def load_moderation_rules(self, category: str = "") -> List[str]:
+        # 从 moderation_rules 表按分类加载已启用的正则 pattern。
+        with self._connect() as conn:
+            if category:
+                rows = conn.execute(
+                    "SELECT pattern FROM moderation_rules WHERE category=? AND enabled=1 ORDER BY id",
+                    (category,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT pattern FROM moderation_rules WHERE enabled=1 ORDER BY id"
+                ).fetchall()
+        return [r["pattern"] for r in rows]
+
+    def count_moderation_rules(self) -> int:
+        with self._connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS c FROM moderation_rules").fetchone()
+        return row["c"] or 0
 
     def get_meta(self, key: str, default: str = "") -> str:
         # 从 meta 表读取键值对，不存在则返回 default。

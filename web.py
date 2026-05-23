@@ -16,7 +16,6 @@ except ImportError:
     quart_request = None
 
 from .constants import PLUGIN_NAME, PLUGIN_VERSION
-from .patterns import AD_PATTERNS, SWEAR_PATTERNS
 
 
 class WebMixin:
@@ -113,8 +112,8 @@ class WebMixin:
             "group_black_list_count": len(self.group_black_list),
             "user_black_list_count": len(self.user_black_list),
             "admin_list_count": len(self.config.get("admin_list", [])),
-            "swear_patterns_count": len(SWEAR_PATTERNS),
-            "ad_patterns_count": len(AD_PATTERNS),
+            "swear_patterns_count": len(self._storage.load_moderation_rules("swear")),
+            "ad_patterns_count": len(self._storage.load_moderation_rules("ad")),
             "lexicon_categories_count": len(self._lexicon),
             "lexicon_total_keywords": sum(
                 len(cat.get("keywords", [])) for cat in self._lexicon.values()
