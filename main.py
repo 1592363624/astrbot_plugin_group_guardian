@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import inspect
 from collections import deque
 from typing import Dict, Tuple
 
 from astrbot.api import logger
-from astrbot.api.event import filter
+from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 from .commands import CommandsMixin
 from .constants import PLUGIN_NAME, PLUGIN_VERSION
@@ -20,6 +20,7 @@ from .utils import UtilitiesMixin
 from .web import WebMixin
 
 
+@register(PLUGIN_NAME, "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", PLUGIN_VERSION, "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
 class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin, Star):
     def __init__(self, context: Context, config: AstrBotConfig = None):
         super().__init__(context)
@@ -57,137 +58,369 @@ class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin
     async def terminate(self):
         logger.info("[GroupMgr] 插件卸载，SQLite 存储已自动持久化")
 
+    async def _search_keyword_in_messages(self, event: AstrMessageEvent, group_id: str, keyword: str, days: int, search_type: str = "all") -> Tuple[int, list]:
+        return await CommandsMixin._search_keyword_in_messages(self, event, group_id, keyword, days, search_type)
 
-_COMMANDS = {
-    "字数统计": "word_count",
-    "群统计": "group_stats",
-    "搜索成员": "search_member",
-    "撤回最新消息": "recall_last",
-    "禁言": "cmd_ban",
-    "解禁": "cmd_unban",
-    "踢人": "cmd_kick",
-    "全体禁言": "cmd_whole_ban",
-    "设置名片": "cmd_set_card",
-    "发公告": "cmd_send_notice",
-    "删公告": "cmd_delete_notice",
-    "公告列表": "cmd_list_notices",
-    "文件列表": "cmd_list_files",
-    "删文件": "cmd_delete_file",
-    "成员列表": "cmd_member_list",
-    "禁言列表": "cmd_banned_list",
-    "群名": "cmd_set_name",
-    "头衔": "cmd_set_title",
-    "设精华": "cmd_set_essence",
-    "取消精华": "cmd_del_essence",
-    "设置管理": "cmd_set_admin",
-    "加群方式": "cmd_join_verify",
-    "自动审核": "cmd_auto_moderate",
-    "设置管理插件": "cmd_plugin_admin",
-    "批量撤回": "recall_all",
-}
-_ADMIN_COMMAND_METHODS = {
-    "search_member",
-    "recall_last",
-    "cmd_ban",
-    "cmd_unban",
-    "cmd_kick",
-    "cmd_whole_ban",
-    "cmd_set_card",
-    "cmd_send_notice",
-    "cmd_delete_notice",
-    "cmd_delete_file",
-    "cmd_set_name",
-    "cmd_set_title",
-    "cmd_set_essence",
-    "cmd_del_essence",
-    "cmd_set_admin",
-    "cmd_join_verify",
-    "cmd_auto_moderate",
-    "cmd_plugin_admin",
-    "recall_all",
-}
-_LLM_TOOLS = {
-    "ban_group_member": "ban_group_member_tool",
-    "unban_group_member": "unban_group_member_tool",
-    "kick_group_member": "kick_group_member_tool",
-    "set_whole_group_ban": "set_whole_group_ban_tool",
-    "set_member_card": "set_member_card_tool",
-    "send_group_announcement": "send_group_announcement_tool",
-    "get_group_member_list": "get_group_member_list_tool",
-    "set_group_admin": "set_group_admin_tool",
-    "set_group_name": "set_group_name_tool",
-    "set_member_title": "set_member_title_tool",
-    "get_banned_members": "get_banned_members_tool",
-    "set_group_join_verify": "set_group_join_verify_tool",
-    "recall_message": "recall_message_tool",
-    "set_essence_message": "set_essence_message_tool",
-    "delete_essence_message": "delete_essence_message_tool",
-    "delete_group_notice": "delete_group_notice_tool",
-    "list_group_files": "list_group_files_tool",
-    "delete_group_file": "delete_group_file_tool",
-    "get_group_notice_list": "get_group_notice_list_tool",
-    "upload_group_file": "upload_group_file_tool",
-}
+    @filter.command("字数统计")
+    async def word_count(self, event: AstrMessageEvent):
+        '''统计群内关键词出现次数'''
+        async for item in CommandsMixin.word_count(self, event):
+            yield item
 
+    @filter.command("群统计")
+    async def group_stats(self, event: AstrMessageEvent):
+        '''显示群内今日消息统计和活跃排行'''
+        async for item in CommandsMixin.group_stats(self, event):
+            yield item
 
-def _strip_decorators(func):
-    for attr in ("__decorated__", "__decorated_event__", "__decorated_platform__"):
-        if hasattr(func, attr):
-            delattr(func, attr)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("搜索成员")
+    async def search_member(self, event: AstrMessageEvent):
+        '''按昵称或QQ号搜索群成员'''
+        async for item in CommandsMixin.search_member(self, event):
+            yield item
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("撤回最新消息")
+    async def recall_last(self, event: AstrMessageEvent):
+        '''撤回群内最新一条或多条消息'''
+        async for item in CommandsMixin.recall_last(self, event):
+            yield item
 
-def _rebind_handler(func, name):
-    if inspect.isasyncgenfunction(func):
-        async def wrapper(self, *args, **kwargs):
-            async for item in func(self, *args, **kwargs):
-                yield item
-    else:
-        async def wrapper(self, *args, **kwargs):
-            return await func(self, *args, **kwargs)
-    wrapper.__name__ = name
-    wrapper.__doc__ = getattr(func, "__doc__", None)
-    wrapper.__annotations__ = dict(getattr(func, "__annotations__", {}))
-    wrapper.__signature__ = inspect.signature(func)
-    wrapper.__module__ = PLUGIN_NAME
-    wrapper.__qualname__ = f"Main.{name}"
-    return wrapper
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("禁言")
+    async def cmd_ban(self, event: AstrMessageEvent):
+        '''禁言指定群成员。用法: /禁言 <QQ号> <分钟>'''
+        async for item in CommandsMixin.cmd_ban(self, event):
+            yield item
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("解禁")
+    async def cmd_unban(self, event: AstrMessageEvent):
+        '''解除指定群成员禁言。用法: /解禁 <QQ号>'''
+        async for item in CommandsMixin.cmd_unban(self, event):
+            yield item
 
-for _command_name, _method_name in _COMMANDS.items():
-    _source = getattr(CommandsMixin, _method_name)
-    _strip_decorators(_source)
-    _handler = _rebind_handler(_source, _method_name)
-    if _method_name in _ADMIN_COMMAND_METHODS:
-        _handler = filter.permission_type(filter.PermissionType.ADMIN)(_handler)
-    _handler = filter.command(_command_name)(_handler)
-    _handler.__module__ = PLUGIN_NAME
-    _handler.__qualname__ = f"Main.{_method_name}"
-    setattr(Main, _method_name, _handler)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("踢人")
+    async def cmd_kick(self, event: AstrMessageEvent):
+        '''将成员移出群聊。用法: /踢人 <QQ号>'''
+        async for item in CommandsMixin.cmd_kick(self, event):
+            yield item
 
-for _tool_name, _method_name in _LLM_TOOLS.items():
-    _source = getattr(LlmToolsMixin, _method_name)
-    _strip_decorators(_source)
-    _handler = _rebind_handler(_source, _method_name)
-    _handler = filter.llm_tool(name=_tool_name)(_handler)
-    _handler.__module__ = PLUGIN_NAME
-    _handler.__qualname__ = f"Main.{_method_name}"
-    setattr(Main, _method_name, _handler)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("全体禁言")
+    async def cmd_whole_ban(self, event: AstrMessageEvent):
+        '''开启或关闭全员禁言。用法: /全体禁言 开启/关闭'''
+        async for item in CommandsMixin.cmd_whole_ban(self, event):
+            yield item
 
-_handle_message_source = ModerationMixin._handle_message
-_strip_decorators(_handle_message_source)
-_handle_message = _rebind_handler(_handle_message_source, "_handle_message")
-_handle_message = filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)(_handle_message)
-_handle_message = filter.event_message_type(filter.EventMessageType.ALL)(_handle_message)
-_handle_message.__module__ = PLUGIN_NAME
-_handle_message.__qualname__ = "Main._handle_message"
-setattr(Main, "_handle_message", _handle_message)
-setattr(Main, "_search_keyword_in_messages", CommandsMixin._search_keyword_in_messages)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("设置名片")
+    async def cmd_set_card(self, event: AstrMessageEvent):
+        '''修改成员群名片。用法: /设置名片 <QQ号> <新名称>'''
+        async for item in CommandsMixin.cmd_set_card(self, event):
+            yield item
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("发公告")
+    async def cmd_send_notice(self, event: AstrMessageEvent):
+        '''发布群公告。用法: /发公告 <内容>'''
+        async for item in CommandsMixin.cmd_send_notice(self, event):
+            yield item
 
-Main = register(
-    PLUGIN_NAME,
-    "zhaisir",
-    "QQ群智能守护者 - AI审核+群管工具集",
-    PLUGIN_VERSION,
-    "https://github.com/zcj-ui/astrbot_plugin_group_guardian",
-)(Main)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("删公告")
+    async def cmd_delete_notice(self, event: AstrMessageEvent):
+        '''删除群公告。用法: /删公告 <公告ID>'''
+        async for item in CommandsMixin.cmd_delete_notice(self, event):
+            yield item
+
+    @filter.command("公告列表")
+    async def cmd_list_notices(self, event: AstrMessageEvent):
+        '''查看群公告列表'''
+        async for item in CommandsMixin.cmd_list_notices(self, event):
+            yield item
+
+    @filter.command("文件列表")
+    async def cmd_list_files(self, event: AstrMessageEvent):
+        '''查看群文件列表'''
+        async for item in CommandsMixin.cmd_list_files(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("删文件")
+    async def cmd_delete_file(self, event: AstrMessageEvent):
+        '''删除群文件。用法: /删文件 <文件ID>'''
+        async for item in CommandsMixin.cmd_delete_file(self, event):
+            yield item
+
+    @filter.command("成员列表")
+    async def cmd_member_list(self, event: AstrMessageEvent):
+        '''查看群成员列表'''
+        async for item in CommandsMixin.cmd_member_list(self, event):
+            yield item
+
+    @filter.command("禁言列表")
+    async def cmd_banned_list(self, event: AstrMessageEvent):
+        '''查看当前被禁言的成员'''
+        async for item in CommandsMixin.cmd_banned_list(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("群名")
+    async def cmd_set_name(self, event: AstrMessageEvent):
+        '''修改群聊名称。用法: /群名 <新群名>'''
+        async for item in CommandsMixin.cmd_set_name(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("头衔")
+    async def cmd_set_title(self, event: AstrMessageEvent):
+        '''设置成员专属头衔。用法: /头衔 <QQ号> <头衔名>'''
+        async for item in CommandsMixin.cmd_set_title(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("设精华")
+    async def cmd_set_essence(self, event: AstrMessageEvent):
+        '''设置精华消息。用法: /设精华 <消息ID>'''
+        async for item in CommandsMixin.cmd_set_essence(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("取消精华")
+    async def cmd_del_essence(self, event: AstrMessageEvent):
+        '''取消精华消息。用法: /取消精华 <消息ID>'''
+        async for item in CommandsMixin.cmd_del_essence(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("设置管理")
+    async def cmd_set_admin(self, event: AstrMessageEvent):
+        '''设置或取消群管理员。用法: /设置管理 <QQ号>'''
+        async for item in CommandsMixin.cmd_set_admin(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("加群方式")
+    async def cmd_join_verify(self, event: AstrMessageEvent):
+        '''修改入群验证方式。用法: /加群方式 <需要验证/允许/禁止>'''
+        async for item in CommandsMixin.cmd_join_verify(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("自动审核")
+    async def cmd_auto_moderate(self, event: AstrMessageEvent):
+        '''开关智能审核功能。用法: /自动审核 开启/关闭/状态'''
+        async for item in CommandsMixin.cmd_auto_moderate(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("设置管理插件")
+    async def cmd_plugin_admin(self, event: AstrMessageEvent):
+        '''管理插件管理员列表。用法: /设置管理插件 <QQ号> 添加/移除'''
+        async for item in CommandsMixin.cmd_plugin_admin(self, event):
+            yield item
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("批量撤回")
+    async def recall_all(self, event: AstrMessageEvent):
+        '''批量撤回最近消息。用法: /批量撤回 [条数] 或 /批量撤回 @用户 [条数]'''
+        async for item in CommandsMixin.recall_all(self, event):
+            yield item
+
+    @filter.llm_tool(name="ban_group_member")
+    async def ban_group_member_tool(self, event: AstrMessageEvent, user_id: str, duration_minutes: int = 10):
+        '''禁言群成员。当用户要求禁言某人时使用此工具。
+
+        Args:
+            user_id(string): 要禁言的用户QQ号
+            duration_minutes(number): 禁言时长（分钟），默认10分钟
+        '''
+        async for item in LlmToolsMixin.ban_group_member_tool(self, event, user_id, duration_minutes):
+            yield item
+
+    @filter.llm_tool(name="unban_group_member")
+    async def unban_group_member_tool(self, event: AstrMessageEvent, user_id: str):
+        '''解除群成员禁言。当用户要求解除某人禁言时使用此工具。
+
+        Args:
+            user_id(string): 要解除禁言的用户QQ号
+        '''
+        async for item in LlmToolsMixin.unban_group_member_tool(self, event, user_id):
+            yield item
+
+    @filter.llm_tool(name="kick_group_member")
+    async def kick_group_member_tool(self, event: AstrMessageEvent, user_id: str):
+        '''踢出群成员。当用户要求将某人踢出群时使用此工具。
+
+        Args:
+            user_id(string): 要踢出的用户QQ号
+        '''
+        async for item in LlmToolsMixin.kick_group_member_tool(self, event, user_id):
+            yield item
+
+    @filter.llm_tool(name="set_whole_group_ban")
+    async def set_whole_group_ban_tool(self, event: AstrMessageEvent, enable: bool = True):
+        '''开启或关闭全体禁言。
+
+        Args:
+            enable(boolean): true开启全体禁言，false关闭全体禁言
+        '''
+        async for item in LlmToolsMixin.set_whole_group_ban_tool(self, event, enable):
+            yield item
+
+    @filter.llm_tool(name="set_member_card")
+    async def set_member_card_tool(self, event: AstrMessageEvent, user_id: str, card: str):
+        '''设置群成员群名片。
+
+        Args:
+            user_id(string): 目标用户QQ号
+            card(string): 新的群名片
+        '''
+        async for item in LlmToolsMixin.set_member_card_tool(self, event, user_id, card):
+            yield item
+
+    @filter.llm_tool(name="send_group_announcement")
+    async def send_group_announcement_tool(self, event: AstrMessageEvent, content: str):
+        '''发送群公告。
+
+        Args:
+            content(string): 公告内容
+        '''
+        async for item in LlmToolsMixin.send_group_announcement_tool(self, event, content):
+            yield item
+
+    @filter.llm_tool(name="get_group_member_list")
+    async def get_group_member_list_tool(self, event: AstrMessageEvent):
+        '''获取群成员列表。'''
+        async for item in LlmToolsMixin.get_group_member_list_tool(self, event):
+            yield item
+
+    @filter.llm_tool(name="set_group_admin")
+    async def set_group_admin_tool(self, event: AstrMessageEvent, user_id: str, enable: bool = True):
+        '''设置或取消群管理员。
+
+        Args:
+            user_id(string): 目标用户QQ号
+            enable(boolean): true设为管理员，false取消管理员
+        '''
+        async for item in LlmToolsMixin.set_group_admin_tool(self, event, user_id, enable):
+            yield item
+
+    @filter.llm_tool(name="set_group_name")
+    async def set_group_name_tool(self, event: AstrMessageEvent, group_name: str):
+        '''修改群名称。
+
+        Args:
+            group_name(string): 新的群名称
+        '''
+        async for item in LlmToolsMixin.set_group_name_tool(self, event, group_name):
+            yield item
+
+    @filter.llm_tool(name="set_member_title")
+    async def set_member_title_tool(self, event: AstrMessageEvent, user_id: str, title: str):
+        '''设置群成员专属头衔。
+
+        Args:
+            user_id(string): 目标用户QQ号
+            title(string): 专属头衔
+        '''
+        async for item in LlmToolsMixin.set_member_title_tool(self, event, user_id, title):
+            yield item
+
+    @filter.llm_tool(name="get_banned_members")
+    async def get_banned_members_tool(self, event: AstrMessageEvent):
+        '''获取群禁言列表。'''
+        async for item in LlmToolsMixin.get_banned_members_tool(self, event):
+            yield item
+
+    @filter.llm_tool(name="set_group_join_verify")
+    async def set_group_join_verify_tool(self, event: AstrMessageEvent, verify_type: str = "allow"):
+        '''设置群加群验证方式。
+
+        Args:
+            verify_type(string): 验证类型: allow(允许加入), deny(拒绝加入), need_verify(需要审核), not_allow(不允许)
+        '''
+        async for item in LlmToolsMixin.set_group_join_verify_tool(self, event, verify_type):
+            yield item
+
+    @filter.llm_tool(name="recall_message")
+    async def recall_message_tool(self, event: AstrMessageEvent, message_id: str):
+        '''撤回指定消息。
+
+        Args:
+            message_id(string): 要撤回的消息ID
+        '''
+        async for item in LlmToolsMixin.recall_message_tool(self, event, message_id):
+            yield item
+
+    @filter.llm_tool(name="set_essence_message")
+    async def set_essence_message_tool(self, event: AstrMessageEvent, message_id: str):
+        '''设置群精华消息。
+
+        Args:
+            message_id(string): 要设为精华的消息ID
+        '''
+        async for item in LlmToolsMixin.set_essence_message_tool(self, event, message_id):
+            yield item
+
+    @filter.llm_tool(name="delete_essence_message")
+    async def delete_essence_message_tool(self, event: AstrMessageEvent, message_id: str):
+        '''取消群精华消息。
+
+        Args:
+            message_id(string): 要取消精华的消息ID
+        '''
+        async for item in LlmToolsMixin.delete_essence_message_tool(self, event, message_id):
+            yield item
+
+    @filter.llm_tool(name="delete_group_notice")
+    async def delete_group_notice_tool(self, event: AstrMessageEvent, notice_id: str):
+        '''删除群公告。
+
+        Args:
+            notice_id(string): 公告ID
+        '''
+        async for item in LlmToolsMixin.delete_group_notice_tool(self, event, notice_id):
+            yield item
+
+    @filter.llm_tool(name="list_group_files")
+    async def list_group_files_tool(self, event: AstrMessageEvent):
+        '''查看群文件列表。'''
+        async for item in LlmToolsMixin.list_group_files_tool(self, event):
+            yield item
+
+    @filter.llm_tool(name="delete_group_file")
+    async def delete_group_file_tool(self, event: AstrMessageEvent, file_id: str, busid: int = 102):
+        '''删除群文件。
+
+        Args:
+            file_id(string): 文件ID
+            busid(number): 文件类型ID，默认为102
+        '''
+        async for item in LlmToolsMixin.delete_group_file_tool(self, event, file_id, busid):
+            yield item
+
+    @filter.llm_tool(name="get_group_notice_list")
+    async def get_group_notice_list_tool(self, event: AstrMessageEvent):
+        '''获取群公告列表。'''
+        async for item in LlmToolsMixin.get_group_notice_list_tool(self, event):
+            yield item
+
+    @filter.llm_tool(name="upload_group_file")
+    async def upload_group_file_tool(self, event: AstrMessageEvent, file_path: str, file_name: str = ""):
+        '''上传文件到群文件。
+
+        Args:
+            file_path(string): 文件路径
+            file_name(string): 上传后的文件名，可选
+        '''
+        async for item in LlmToolsMixin.upload_group_file_tool(self, event, file_path, file_name):
+            yield item
+
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    async def _handle_message(self, event: AiocqhttpMessageEvent):
+        await ModerationMixin._handle_message(self, event)
