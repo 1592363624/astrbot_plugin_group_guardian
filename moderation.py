@@ -5,7 +5,6 @@ import time
 from typing import Dict, Tuple
 
 from astrbot.api import logger
-from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 
@@ -566,8 +565,6 @@ class ModerationMixin:
             logger.debug(f"[GroupMgr] OCR LLM调用失败: {e}")
             return ""
 
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def _handle_message(self, event: AiocqhttpMessageEvent):
         group_id = self._get_group_id(event)
         if not group_id:

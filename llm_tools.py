@@ -3,11 +3,10 @@ import os
 import time
 from datetime import datetime
 
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent
 
 
 class LlmToolsMixin:
-    @filter.llm_tool(name="ban_group_member")
     async def ban_group_member_tool(self, event: AstrMessageEvent, user_id: str, duration_minutes: int = 10):
         '''禁言群成员。当用户要求禁言某人时使用此工具。
 
@@ -38,7 +37,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"禁言失败: {e}")
 
-    @filter.llm_tool(name="unban_group_member")
     async def unban_group_member_tool(self, event: AstrMessageEvent, user_id: str):
         '''解除群成员禁言。当用户要求解除某人禁言时使用此工具。
 
@@ -66,7 +64,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"解除禁言失败: {e}")
 
-    @filter.llm_tool(name="kick_group_member")
     async def kick_group_member_tool(self, event: AstrMessageEvent, user_id: str):
         '''踢出群成员。当用户要求将某人踢出群时使用此工具。
 
@@ -94,7 +91,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"踢人失败: {e}")
 
-    @filter.llm_tool(name="set_whole_group_ban")
     async def set_whole_group_ban_tool(self, event: AstrMessageEvent, enable: bool = True):
         '''开启或关闭全体禁言。
 
@@ -118,7 +114,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设置全体禁言失败: {e}")
 
-    @filter.llm_tool(name="set_member_card")
     async def set_member_card_tool(self, event: AstrMessageEvent, user_id: str, card: str):
         '''设置群成员群名片。
 
@@ -147,7 +142,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设置群名片失败: {e}")
 
-    @filter.llm_tool(name="send_group_announcement")
     async def send_group_announcement_tool(self, event: AstrMessageEvent, content: str):
         '''发送群公告。
 
@@ -171,7 +165,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"发布公告失败: {e}")
 
-    @filter.llm_tool(name="get_group_member_list")
     async def get_group_member_list_tool(self, event: AstrMessageEvent):
         '''获取群成员列表。'''
         ok, err = await self._check_admin_cfg_access(event, "member_list_enabled", "查看群成员列表")
@@ -200,7 +193,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"获取成员列表失败: {e}")
 
-    @filter.llm_tool(name="set_group_admin")
     async def set_group_admin_tool(self, event: AstrMessageEvent, user_id: str, enable: bool = True):
         '''设置或取消群管理员。
 
@@ -229,7 +221,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设置管理员失败: {e}")
 
-    @filter.llm_tool(name="set_group_name")
     async def set_group_name_tool(self, event: AstrMessageEvent, group_name: str):
         '''修改群名称。
 
@@ -253,7 +244,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"改群名失败: {e}")
 
-    @filter.llm_tool(name="set_member_title")
     async def set_member_title_tool(self, event: AstrMessageEvent, user_id: str, title: str):
         '''设置群成员专属头衔。
 
@@ -282,7 +272,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设置头衔失败: {e}")
 
-    @filter.llm_tool(name="get_banned_members")
     async def get_banned_members_tool(self, event: AstrMessageEvent):
         '''获取群禁言列表。'''
         ok, err = await self._check_admin_cfg_access(event, "banned_list_enabled", "查看禁言列表")
@@ -314,7 +303,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"获取禁言列表失败: {e}")
 
-    @filter.llm_tool(name="set_group_join_verify")
     async def set_group_join_verify_tool(self, event: AstrMessageEvent, verify_type: str = "allow"):
         '''设置群加群验证方式。
 
@@ -341,7 +329,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设置加群方式失败: {e}")
 
-    @filter.llm_tool(name="recall_message")
     async def recall_message_tool(self, event: AstrMessageEvent, message_id: str):
         '''撤回指定消息。
 
@@ -369,7 +356,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"撤回失败: {e}")
 
-    @filter.llm_tool(name="set_essence_message")
     async def set_essence_message_tool(self, event: AstrMessageEvent, message_id: str):
         '''设置群精华消息。
 
@@ -397,7 +383,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"设精华失败: {e}")
 
-    @filter.llm_tool(name="delete_essence_message")
     async def delete_essence_message_tool(self, event: AstrMessageEvent, message_id: str):
         '''取消群精华消息。
 
@@ -425,7 +410,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"取消精华失败: {e}")
 
-    @filter.llm_tool(name="delete_group_notice")
     async def delete_group_notice_tool(self, event: AstrMessageEvent, notice_id: str):
         '''删除群公告。
 
@@ -449,7 +433,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"删除公告失败: {e}")
 
-    @filter.llm_tool(name="list_group_files")
     async def list_group_files_tool(self, event: AstrMessageEvent):
         '''查看群文件列表。'''
         ok, err = await self._check_admin_cfg_access(event, "group_files_enabled", "群文件")
@@ -482,7 +465,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"查文件失败: {e}")
 
-    @filter.llm_tool(name="delete_group_file")
     async def delete_group_file_tool(self, event: AstrMessageEvent, file_id: str, busid: int = 102):
         '''删除群文件。
 
@@ -507,7 +489,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"删文件失败: {e}")
 
-    @filter.llm_tool(name="get_group_notice_list")
     async def get_group_notice_list_tool(self, event: AstrMessageEvent):
         '''获取群公告列表。'''
         ok, err = await self._check_admin_cfg_access(event, "list_announcements_enabled", "查看公告列表")
@@ -537,7 +518,6 @@ class LlmToolsMixin:
         except Exception as e:
             yield event.plain_result(f"获取公告失败: {e}")
 
-    @filter.llm_tool(name="upload_group_file")
     async def upload_group_file_tool(self, event: AstrMessageEvent, file_path: str, file_name: str = ""):
         '''上传文件到群文件。
 

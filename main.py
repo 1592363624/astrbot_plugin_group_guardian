@@ -58,7 +58,33 @@ class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin
         logger.info("[GroupMgr] 插件卸载，SQLite 存储已自动持久化")
 
 
-_DECORATED_METHOD_MIXINS = (CommandsMixin, ModerationMixin, LlmToolsMixin)
+_COMMANDS = {
+    "字数统计": "word_count",
+    "群统计": "group_stats",
+    "搜索成员": "search_member",
+    "撤回最新消息": "recall_last",
+    "禁言": "cmd_ban",
+    "解禁": "cmd_unban",
+    "踢人": "cmd_kick",
+    "全体禁言": "cmd_whole_ban",
+    "设置名片": "cmd_set_card",
+    "发公告": "cmd_send_notice",
+    "删公告": "cmd_delete_notice",
+    "公告列表": "cmd_list_notices",
+    "文件列表": "cmd_list_files",
+    "删文件": "cmd_delete_file",
+    "成员列表": "cmd_member_list",
+    "禁言列表": "cmd_banned_list",
+    "群名": "cmd_set_name",
+    "头衔": "cmd_set_title",
+    "设精华": "cmd_set_essence",
+    "取消精华": "cmd_del_essence",
+    "设置管理": "cmd_set_admin",
+    "加群方式": "cmd_join_verify",
+    "自动审核": "cmd_auto_moderate",
+    "设置管理插件": "cmd_plugin_admin",
+    "批量撤回": "recall_all",
+}
 _ADMIN_COMMAND_METHODS = {
     "search_member",
     "recall_last",
@@ -80,45 +106,81 @@ _ADMIN_COMMAND_METHODS = {
     "cmd_plugin_admin",
     "recall_all",
 }
+_LLM_TOOLS = {
+    "ban_group_member": "ban_group_member_tool",
+    "unban_group_member": "unban_group_member_tool",
+    "kick_group_member": "kick_group_member_tool",
+    "set_whole_group_ban": "set_whole_group_ban_tool",
+    "set_member_card": "set_member_card_tool",
+    "send_group_announcement": "send_group_announcement_tool",
+    "get_group_member_list": "get_group_member_list_tool",
+    "set_group_admin": "set_group_admin_tool",
+    "set_group_name": "set_group_name_tool",
+    "set_member_title": "set_member_title_tool",
+    "get_banned_members": "get_banned_members_tool",
+    "set_group_join_verify": "set_group_join_verify_tool",
+    "recall_message": "recall_message_tool",
+    "set_essence_message": "set_essence_message_tool",
+    "delete_essence_message": "delete_essence_message_tool",
+    "delete_group_notice": "delete_group_notice_tool",
+    "list_group_files": "list_group_files_tool",
+    "delete_group_file": "delete_group_file_tool",
+    "get_group_notice_list": "get_group_notice_list_tool",
+    "upload_group_file": "upload_group_file_tool",
+}
+
+
+def _strip_decorators(func):
+    for attr in ("__decorated__", "__decorated_event__", "__decorated_platform__"):
+        if hasattr(func, attr):
+            delattr(func, attr)
 
 
 def _rebind_handler(func, name):
     if inspect.isasyncgenfunction(func):
-        async def _wrapper(self, *args, **kwargs):
+        async def wrapper(self, *args, **kwargs):
             async for item in func(self, *args, **kwargs):
                 yield item
     else:
-        async def _wrapper(self, *args, **kwargs):
+        async def wrapper(self, *args, **kwargs):
             return await func(self, *args, **kwargs)
-    for _attr in ("__decorated__", "__decorated_event__", "__decorated_platform__"):
-        if hasattr(func, _attr):
-            setattr(_wrapper, _attr, getattr(func, _attr))
-    _wrapper.__name__ = name
-    _wrapper.__doc__ = getattr(func, "__doc__", None)
-    _wrapper.__annotations__ = dict(getattr(func, "__annotations__", {}))
-    _wrapper.__signature__ = inspect.signature(func)
-    _wrapper.__module__ = __name__
-    _wrapper.__qualname__ = f"Main.{name}"
-    return _wrapper
+    wrapper.__name__ = name
+    wrapper.__doc__ = getattr(func, "__doc__", None)
+    wrapper.__annotations__ = dict(getattr(func, "__annotations__", {}))
+    wrapper.__signature__ = inspect.signature(func)
+    wrapper.__module__ = PLUGIN_NAME
+    wrapper.__qualname__ = f"Main.{name}"
+    return wrapper
 
 
-for _mixin in _DECORATED_METHOD_MIXINS:
-    for _name, _source in _mixin.__dict__.items():
-        if callable(_source) and (
-            hasattr(_source, "__decorated__")
-            or hasattr(_source, "__decorated_event__")
-            or hasattr(_source, "__decorated_platform__")
-        ):
-            _value = _rebind_handler(_source, _name)
-            if _name in _ADMIN_COMMAND_METHODS:
-                _value = filter.permission_type(filter.PermissionType.ADMIN)(_value)
-            _value.__module__ = __name__
-            _value.__qualname__ = f"Main.{_name}"
-            setattr(Main, _name, _value)
-            for _attr in ("__decorated__", "__decorated_event__", "__decorated_platform__"):
-                if hasattr(_source, _attr):
-                    delattr(_source, _attr)
+for _command_name, _method_name in _COMMANDS.items():
+    _source = getattr(CommandsMixin, _method_name)
+    _strip_decorators(_source)
+    _handler = _rebind_handler(_source, _method_name)
+    if _method_name in _ADMIN_COMMAND_METHODS:
+        _handler = filter.permission_type(filter.PermissionType.ADMIN)(_handler)
+    _handler = filter.command(_command_name)(_handler)
+    _handler.__module__ = PLUGIN_NAME
+    _handler.__qualname__ = f"Main.{_method_name}"
+    setattr(Main, _method_name, _handler)
 
+for _tool_name, _method_name in _LLM_TOOLS.items():
+    _source = getattr(LlmToolsMixin, _method_name)
+    _strip_decorators(_source)
+    _handler = _rebind_handler(_source, _method_name)
+    _handler = filter.llm_tool(name=_tool_name)(_handler)
+    _handler.__module__ = PLUGIN_NAME
+    _handler.__qualname__ = f"Main.{_method_name}"
+    setattr(Main, _method_name, _handler)
+
+_handle_message_source = ModerationMixin._handle_message
+_strip_decorators(_handle_message_source)
+_handle_message = _rebind_handler(_handle_message_source, "_handle_message")
+_handle_message = filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)(_handle_message)
+_handle_message = filter.event_message_type(filter.EventMessageType.ALL)(_handle_message)
+_handle_message.__module__ = PLUGIN_NAME
+_handle_message.__qualname__ = "Main._handle_message"
+setattr(Main, "_handle_message", _handle_message)
 setattr(Main, "_search_keyword_in_messages", CommandsMixin._search_keyword_in_messages)
 
 

@@ -4,11 +4,10 @@ import time
 from typing import Tuple
 
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent
 
 
 class CommandsMixin:
-    @filter.command("字数统计")
     async def word_count(self, event: AstrMessageEvent):
         '''统计群内关键词出现次数'''
         ok, err = await self._check_admin_cfg_access(event, "word_count_enabled", "字数统计", need_admin=False)
@@ -94,7 +93,6 @@ class CommandsMixin:
                 continue
         return count, sample_messages
 
-    @filter.command("群统计")
     async def group_stats(self, event: AstrMessageEvent):
         '''显示群内今日消息统计和活跃排行'''
         ok, err = await self._check_admin_cfg_access(event, "group_stats_enabled", "群统计", need_admin=False)
@@ -123,7 +121,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"获取统计失败: {e}")
 
-    @filter.command("搜索成员")
     async def search_member(self, event: AstrMessageEvent):
         '''按昵称或QQ号搜索群成员'''
         ok, err = await self._check_admin_cfg_access(event, "member_list_enabled", "查看群成员")
@@ -164,7 +161,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"搜索失败: {e}")
 
-    @filter.command("撤回最新消息")
     async def recall_last(self, event: AstrMessageEvent):
         '''撤回群内最新一条或多条消息'''
         ok, msg = self._cfg_check("recall_enabled", "撤回消息")
@@ -209,7 +205,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"撤回失败: {e}")
 
-    @filter.command("禁言")
     async def cmd_ban(self, event: AstrMessageEvent):
         '''禁言指定群成员。用法: /禁言 <QQ号> <分钟>'''
         ok, err = await self._check_admin_cfg_access(event, "ban_enabled", "禁言")
@@ -239,7 +234,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"禁言失败: {e}")
 
-    @filter.command("解禁")
     async def cmd_unban(self, event: AstrMessageEvent):
         '''解除指定群成员禁言。用法: /解禁 <QQ号>'''
         ok, err = await self._check_admin_cfg_access(event, "unban_enabled", "解禁")
@@ -268,7 +262,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"解禁失败: {e}")
 
-    @filter.command("踢人")
     async def cmd_kick(self, event: AstrMessageEvent):
         '''将成员移出群聊。用法: /踢人 <QQ号>'''
         ok, err = await self._check_admin_cfg_access(event, "kick_enabled", "踢人")
@@ -297,7 +290,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"踢人失败: {e}")
 
-    @filter.command("全体禁言")
     async def cmd_whole_ban(self, event: AstrMessageEvent):
         '''开启或关闭全员禁言。用法: /全体禁言 开启/关闭'''
         ok, err = await self._check_admin_cfg_access(event, "whole_ban_enabled", "全体禁言")
@@ -323,7 +315,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"操作失败: {e}")
 
-    @filter.command("设置名片")
     async def cmd_set_card(self, event: AstrMessageEvent):
         '''修改成员群名片。用法: /设置名片 <QQ号> <新名称>'''
         ok, err = await self._check_admin_cfg_access(event, "set_card_enabled", "设置名片")
@@ -353,7 +344,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"设置失败: {e}")
 
-    @filter.command("发公告")
     async def cmd_send_notice(self, event: AstrMessageEvent):
         '''发布群公告。用法: /发公告 <内容>'''
         ok, err = await self._check_admin_cfg_access(event, "send_announcement_enabled", "发公告")
@@ -379,7 +369,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"发送失败: {e}")
 
-    @filter.command("删公告")
     async def cmd_delete_notice(self, event: AstrMessageEvent):
         '''删除群公告。用法: /删公告 <公告ID>'''
         ok, err = await self._check_admin_cfg_access(event, "delete_announcement_enabled", "删公告")
@@ -404,7 +393,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"删除失败: {e}")
 
-    @filter.command("公告列表")
     async def cmd_list_notices(self, event: AstrMessageEvent):
         '''查看群公告列表'''
         ok, err = await self._check_admin_cfg_access(event, "list_announcements_enabled", "公告列表", need_admin=False)
@@ -432,7 +420,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"获取失败: {e}")
 
-    @filter.command("文件列表")
     async def cmd_list_files(self, event: AstrMessageEvent):
         '''查看群文件列表'''
         ok, err = await self._check_admin_cfg_access(event, "group_files_enabled", "群文件管理", need_admin=False)
@@ -465,7 +452,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"获取失败: {e}")
 
-    @filter.command("删文件")
     async def cmd_delete_file(self, event: AstrMessageEvent):
         '''删除群文件。用法: /删文件 <文件ID>'''
         ok, err = await self._check_admin_cfg_access(event, "group_files_enabled", "群文件管理")
@@ -490,7 +476,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"删除失败: {e}")
 
-    @filter.command("成员列表")
     async def cmd_member_list(self, event: AstrMessageEvent):
         '''查看群成员列表'''
         ok, err = await self._check_admin_cfg_access(event, "member_list_enabled", "成员列表", need_admin=False)
@@ -519,7 +504,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"获取失败: {e}")
 
-    @filter.command("禁言列表")
     async def cmd_banned_list(self, event: AstrMessageEvent):
         '''查看当前被禁言的成员'''
         ok, err = await self._check_admin_cfg_access(event, "banned_list_enabled", "禁言列表", need_admin=False)
@@ -545,7 +529,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"获取失败: {e}")
 
-    @filter.command("群名")
     async def cmd_set_name(self, event: AstrMessageEvent):
         '''修改群聊名称。用法: /群名 <新名称>'''
         ok, err = await self._check_admin_cfg_access(event, "set_group_name_enabled", "修改群名")
@@ -569,7 +552,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"修改失败: {e}")
 
-    @filter.command("头衔")
     async def cmd_set_title(self, event: AstrMessageEvent):
         '''设置成员专属头衔。用法: /头衔 <QQ号> <头衔名>'''
         ok, err = await self._check_admin_cfg_access(event, "set_title_enabled", "设置头衔")
@@ -599,7 +581,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"设置失败: {e}")
 
-    @filter.command("设精华")
     async def cmd_set_essence(self, event: AstrMessageEvent):
         '''设置精华消息。用法: /设精华 <消息ID>'''
         ok, err = await self._check_admin_cfg_access(event, "essence_enabled", "精华消息")
@@ -627,7 +608,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"设置失败: {e}")
 
-    @filter.command("取消精华")
     async def cmd_del_essence(self, event: AstrMessageEvent):
         '''取消精华消息。用法: /取消精华 <消息ID>'''
         ok, err = await self._check_admin_cfg_access(event, "essence_enabled", "精华消息")
@@ -655,7 +635,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"取消失败: {e}")
 
-    @filter.command("设置管理")
     async def cmd_set_admin(self, event: AstrMessageEvent):
         '''设置或取消群管理员。用法: /设置管理 <QQ号>'''
         ok, err = await self._check_admin_cfg_access(event, "set_admin_enabled", "设置管理员")
@@ -684,7 +663,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"设置失败: {e}")
 
-    @filter.command("加群方式")
     async def cmd_join_verify(self, event: AstrMessageEvent):
         '''修改入群验证方式。用法: /加群方式 <需要验证/允许/禁止>'''
         ok, err = await self._check_admin_cfg_access(event, "join_verify_enabled", "加群验证")
@@ -714,7 +692,6 @@ class CommandsMixin:
         except Exception as e:
             yield event.plain_result(f"设置失败: {e}")
 
-    @filter.command("自动审核")
     async def cmd_auto_moderate(self, event: AstrMessageEvent):
         '''开关智能审核功能。用法: /自动审核 开启/关闭/状态'''
         if not await self._is_admin(event):
@@ -738,7 +715,6 @@ class CommandsMixin:
         self._save_config_safe()
         yield event.plain_result(f"自动审核已{action}")
 
-    @filter.command("设置管理插件")
     async def cmd_plugin_admin(self, event: AstrMessageEvent):
         '''管理插件管理员列表。用法: /设置管理插件 <QQ号> 添加/移除'''
         if not await self._is_admin(event):
@@ -767,7 +743,6 @@ class CommandsMixin:
         self.config["admin_list"] = admin_list
         self._save_config_safe()
 
-    @filter.command("批量撤回")
     async def recall_all(self, event: AstrMessageEvent):
         '''批量撤回最近消息。用法: /批量撤回 [条数] 或 /批量撤回 @用户 [条数]'''
         ok, msg = self._cfg_check("recall_enabled", "撤回消息")
