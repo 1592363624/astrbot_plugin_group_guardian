@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""种子正则规则 —— 仅用于首次初始化时导入 SQLite moderation_rules 表。
-
-运行时正则从 group_guardian.db 加载，修改此文件后需清空 moderation_rules 表并重载插件才能生效。
-动态增删规则请使用 WebUI 或直接操作数据库。
-"""
+"""政治敏感词白名单（运行时使用）。正则规则已迁移到 lexicon.db 的 moderation_rules 表。"""
 
 _POLITICAL_WHITELIST = {
     "服务器", "管理", "管理员", "管里", "官方", "维护", "系统", "系统公告",
@@ -14,24 +10,6 @@ _POLITICAL_WHITELIST = {
     "草",
 }
 
-# Regex patterns for profanity detection, compiled at initialization.
-# 脏话正则：匹配侮辱性词汇。在审核第一轮由 _compiled_swear 匹配，命中后进入 LLM 二次判断。
-# 添加规则时注意使用非捕获组 (?:...) 包裹分支，避免影响后续匹配逻辑。
-SWEAR_PATTERNS = [
-    r'妈[的得]',
-    r'(?:你|他|她|它|尼|伱)[妈馬嗎玛]',
-    r'(?:傻|蠢|笨|白痴|弱智|脑残|智障|sb|s\W*b|煞笔|傻逼|沙比|煞逼|二货)',
-    r'(?:操|草|艹|肏|日|干)(?:你|他|她|泥|拟|尼|呢|ma|吗|嘛)',
-    r'(?:fuck|f[u*]ck|bitch|shit|damn|asshole)',
-    r'(?:贱|骚|浪|婊|妓|鸡|鸭)(?:人|货|子|逼|B|b)',
-    r'(?:去死|滚蛋|滚粗|gun|死全家|死妈|死爹)',
-    r'(?:cnm|cao|nmsl|草泥马|艹尼玛|草拟吗|你妈死了|nmslese)',
-    r'(?:婊子|贱人|骚货|烂货|荡妇|破鞋|野鸡)',
-    r'(?:狗日的|狗东西|狗屎|垃圾|辣鸡|乐色)',
-    r'(?:废物|废柴|fw|five|拉胯)',
-    r'(?:杂种|杂碎|畜生|禽兽|狗娘养的|龟孙)',
-    r'(?:你算老几|你配吗|你个.{0,5}东西)',
-]
 
 # Regex patterns for advertisement detection, compiled at initialization.
 AD_PATTERNS = [
