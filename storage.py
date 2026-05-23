@@ -135,7 +135,7 @@ class SQLiteStorage:
             logger.warning(f"[GroupMgr] 从 lexicon.db 导入正则规则失败: {e}")
 
     def seed_moderation_rules(self, rules: Dict[str, List[str]]) -> None:
-        # 将 patterns.py 中的正则规则写入 moderation_rules 表，已有则不重复导入。
+        # 将正则规则写入 moderation_rules 表，已有则不重复导入。
         if self.count_moderation_rules() > 0:
             return
         with self._connect() as conn:

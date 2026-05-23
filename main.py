@@ -48,7 +48,7 @@ class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin
         self.user_black_list = [str(u).strip() for u in (_ubl if isinstance(_ubl, list) else [_ubl]) if u]
         self._user_black_set = set(self.user_black_list)
         self.auto_moderate_enabled = self.config.get("auto_moderate_enabled", True)
-        # 正则规则从 DB 加载，patterns.py 中的定义仅在首次初始化时作为种子数据使用。
+        # 正则规则从 DB 加载，初始化时从内置 lexicon.db 导入，运行时支持 WebUI 热更新。
         _swear_list = self._storage.load_moderation_rules("swear")
         _ad_list = self._storage.load_moderation_rules("ad")
         self._compiled_swear = self._build_combined_regex(_swear_list)

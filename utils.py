@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 
 from astrbot.api import logger
-from .patterns import _POLITICAL_WHITELIST
 
 
 class UtilitiesMixin:
@@ -225,15 +224,14 @@ class UtilitiesMixin:
             keywords = cat_data.get("keywords", [])
             escaped_parts = []
             min_len = 2 if cat_name == "illegal_url" else 3
-            skip_keywords = _POLITICAL_WHITELIST if cat_name == "political" else set()
             for kw in keywords:
                 kw = kw.strip()
-                if not kw or kw.lower() in skip_keywords:
+                if not kw:
                     continue
                 if '+' in kw and cat_name != "illegal_url":
                     parts = [p.strip() for p in kw.split('+') if p.strip()]
                     for part in parts:
-                        if len(part) >= min_len and part.lower() not in skip_keywords:
+                        if len(part) >= min_len:
                             escaped_parts.append(re.escape(part))
                 else:
                     if len(kw) < min_len:
