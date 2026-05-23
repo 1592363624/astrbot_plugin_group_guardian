@@ -103,18 +103,21 @@ def _rebind_handler(func, name):
 
 
 for _mixin in _DECORATED_METHOD_MIXINS:
-    for _name, _value in _mixin.__dict__.items():
-        if callable(_value) and (
-            hasattr(_value, "__decorated__")
-            or hasattr(_value, "__decorated_event__")
-            or hasattr(_value, "__decorated_platform__")
+    for _name, _source in _mixin.__dict__.items():
+        if callable(_source) and (
+            hasattr(_source, "__decorated__")
+            or hasattr(_source, "__decorated_event__")
+            or hasattr(_source, "__decorated_platform__")
         ):
-            _value = _rebind_handler(_value, _name)
+            _value = _rebind_handler(_source, _name)
             if _name in _ADMIN_COMMAND_METHODS:
                 _value = filter.permission_type(filter.PermissionType.ADMIN)(_value)
             _value.__module__ = __name__
             _value.__qualname__ = f"Main.{_name}"
             setattr(Main, _name, _value)
+            for _attr in ("__decorated__", "__decorated_event__", "__decorated_platform__"):
+                if hasattr(_source, _attr):
+                    delattr(_source, _attr)
 
 setattr(Main, "_search_keyword_in_messages", CommandsMixin._search_keyword_in_messages)
 
