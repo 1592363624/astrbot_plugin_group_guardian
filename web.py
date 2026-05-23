@@ -7,11 +7,6 @@ import time
 from collections import deque
 from datetime import datetime
 
-try:
-    import aiohttp
-except ImportError:
-    aiohttp = None
-
 from astrbot.api import logger
 
 try:
@@ -28,7 +23,6 @@ class WebMixin:
     # 本插件 WebUI 面板的所有 API 接口。
     # 注册通过 main.py 的 _register_web_apis() 调用 _register_routes() 完成。
     # 每个 API handler 通过 _wrap_web_handler 包装，自动检查 Quart 可用性并做统一异常捕获。
-    # 图片代理接口 _web_image_proxy 只允许白名单域名（qpic.cn 等），且显式禁用了 HTTP 重定向。
     @staticmethod
     def _check_quart_available():
         if quart_request is None or jsonify is None:
@@ -70,7 +64,6 @@ class WebMixin:
                 ("/today_stats", self._web_today_stats, ["GET"], "获取今日拦截统计"),
                 ("/migration/status", self._web_migration_status, ["GET"], "获取SQLite迁移状态"),
                 ("/migration/run", self._web_migration_run, ["POST"], "执行SQLite迁移"),
-                ("/image_proxy", self._web_image_proxy, ["GET"], "图片代理"),
             ]
             for path, handler, methods, desc in routes:
                 self.context.register_web_api(
@@ -660,40 +653,4 @@ class WebMixin:
             logger.exception("migration failed")
             return jsonify({"status": "error", "message": str(e)})
 
-    async def _web_image_proxy(self):
-        # allow_redirects=False 防止恶意 URL 跳转到非白名单域名；domain whitelist 只允许腾讯系 CDN 域名。
-        if aiohttp is None:
-            return jsonify({"status": "error", "message": "aiohttp 未安装"}), 500
-        url = quart_request.args.get("url", "").strip()
-        if not url:
-            return jsonify({"status": "error", "message": "缺少 url 参数"}), 400
-        allowed_hosts = ("qpic.cn", "gchat.qpic.cn", "p.qlogo.cn", "q.qlogo.cn",
-                         "multimedia.nt.qq.com.cn", "c2cpicdw.qpic.cn")
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        hostname = (parsed.hostname or "").lower()
-        host_ok = parsed.scheme in ("http", "https") and any(hostname == h or hostname.endswith("." + h) for h in allowed_hosts)
-        if not host_ok:
-            return jsonify({"status": "error", "message": "不允许代理该域名"}), 403
-        try:
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-                async with session.get(url, headers=headers, allow_redirects=False) as resp:
-                    if resp.status != 200:
-                        return jsonify({"status": "error", "message": f"图片获取失败: HTTP {resp.status}"}), 502
-                    content = await resp.read()
-                    content_type = resp.headers.get("Content-Type", "image/jpeg")
-                    from quart import Response
-                    return Response(
-                        content, status=200, content_type=content_type,
-                        headers={
-                            "Access-Control-Allow-Origin": "*",
-                            "Cross-Origin-Resource-Policy": "cross-origin",
-                            "Cache-Control": "public, max-age=3600",
-                        }
-                    )
-        except asyncio.TimeoutError:
-            return jsonify({"status": "error", "message": "图片获取超时"}), 504
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
+
