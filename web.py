@@ -66,6 +66,7 @@ class WebMixin:
                 ("/dashboard/distribution", self._web_dashboard_distribution, ["GET"], "获取违规类型分布"),
                 ("/dashboard/hourly", self._web_dashboard_hourly, ["GET"], "获取时段分布"),
                 ("/dashboard/group_ranking", self._web_dashboard_group_ranking, ["GET"], "获取历史群拦截排行"),
+                ("/anti_flood/status", self._web_anti_flood_status, ["GET"], "获取防刷屏追踪状态"),
             ]
             for path, handler, methods, desc in routes:
                 self.context.register_web_api(
@@ -726,6 +727,13 @@ class WebMixin:
             top_n = 10
         try:
             data = self._storage.get_group_activity_ranking(days=days, top_n=top_n)
+            return jsonify({"status": "success", "data": data})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_anti_flood_status(self):
+        try:
+            data = self._get_anti_flood_status()
             return jsonify({"status": "success", "data": data})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})

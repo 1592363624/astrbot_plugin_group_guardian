@@ -242,14 +242,14 @@ class ModerationMixin:
                 sender_obj = m.get('sender')
                 sender = sender_obj.get('nickname', '未知') if isinstance(sender_obj, dict) else '未知'
                 content = self._format_message_content(m.get('message', ''))
-                # 每条上下文消息截断到 200 字符，防止单条长消息淹没有效信息。
-                if len(content) > 200:
-                    content = content[:200] + '...'
+                # 每条上下文消息截断，防止单条长消息淹没有效信息。
+                if len(content) > CONTEXT_MESSAGE_MAX_CHARS:
+                    content = content[:CONTEXT_MESSAGE_MAX_CHARS] + '...'
                 lines.append(f"  {sender}: {content}")
             context_text = "\n".join(lines)
-            # 所有上下文总长度限制 3000 字符，超长则截取尾部（最近的消息更重要）。
-            if len(context_text) > 3000:
-                context_text = context_text[-3000:]
+            # 所有上下文总长度限制，超长则截取尾部（最近的消息更重要）。
+            if len(context_text) > CONTEXT_TOTAL_MAX_CHARS:
+                context_text = context_text[-CONTEXT_TOTAL_MAX_CHARS:]
 
         # ---------- 可疑类型标签 ----------
         # 将正则/词库初筛命中的类型组装为人类可读的标签传给 LLM，
@@ -747,6 +747,42 @@ class ModerationMixin:
         group_id = self._get_group_id(event)
         if not group_id:
             return
+        # 防刷屏检测：所有消息类型（转发/QQ收藏/图片/JSON/App等）均计入，管理员豁免。
+        user_id_flood = self._try_get_sender_id(event)
+        msg_id_flood = str(getattr(getattr(event, 'message_obj', None), 'message_id', ''))
+        if self._cfg("anti_flood_enabled", True) and user_id_flood and msg_id_flood:
+            if not await self._is_admin(event):
+                self._record_message(group_id, user_id_flood, msg_id_flood)
+                self._anti_flood_cleanup()
+                is_flooding, flood_info = self._check_anti_flood(group_id, user_id_flood)
+                if is_flooding:
+                    user_name = event.get_sender_name()
+                    mute_dur = self._safe_int(self.config.get("anti_flood_mute_duration", 300), 300)
+                    recall_enabled = self._cfg("anti_flood_recall_enabled", True)
+                    recall_threshold = self._safe_int(self.config.get("anti_flood_recall_threshold", 20), 20)
+                    try:
+                        await self._mute_member(event, mute_dur)
+                        flood_total = flood_info.get("total_msgs", flood_info.get("count", 0))
+                        if recall_enabled and flood_total >= recall_threshold and flood_info.get("msg_ids"):
+                            for fid in flood_info["msg_ids"]:
+                                try:
+                                    await self._recall_msg(event, fid)
+                                except Exception:
+                                    pass
+                        notice_text = (
+                            f"[群管] {user_name}({user_id_flood}) 刷屏被禁言 {mute_dur} 秒"
+                            f"（{flood_info['rate']} {flood_info['count']} 条/上限 {flood_info['limit']} 条）"
+                        )
+                        if recall_enabled and flood_total >= recall_threshold:
+                            notice_text += "，消息已撤回"
+                        yield event.plain_result(notice_text)
+                        self._log_moderation(group_id, user_id_flood, user_name,
+                                             f"[刷屏] {flood_info['rate']} {flood_info['count']}条/上限{flood_info['limit']}条",
+                                             "禁言", notice_text, [])
+                        event.stop_event()
+                        return
+                    except Exception as e:
+                        logger.warning(f"[GroupMgr] 防刷屏处理失败: {e}")
         # 群黑名单：在黑名单中的群完全不处理（与白名单的"不处理白名单外的群"逻辑对应）。
         if self._group_black_set and group_id in self._group_black_set:
             return

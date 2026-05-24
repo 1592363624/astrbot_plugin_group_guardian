@@ -240,6 +240,48 @@
         "default": true,
         "hint": "关闭后群打卡功能和 /group_sign 指令均不可用"
     },
+    "anti_flood_enabled": {
+        "description": "防刷屏总开关",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后自动检测并处理刷屏行为（每秒/每分钟/每小时消息数超限时禁言+可选撤回）。所有消息类型均计入，包括转发、QQ收藏、图片等"
+    },
+    "anti_flood_rate_per_second": {
+        "description": "每秒最多消息数",
+        "type": "int",
+        "default": 5,
+        "hint": "用户每秒发送消息数超过此值即判定为刷屏"
+    },
+    "anti_flood_rate_per_minute": {
+        "description": "每分钟最多消息数",
+        "type": "int",
+        "default": 20,
+        "hint": "用户每分钟发送消息数超过此值即判定为刷屏"
+    },
+    "anti_flood_rate_per_hour": {
+        "description": "每小时最多消息数",
+        "type": "int",
+        "default": 60,
+        "hint": "用户每小时发送消息数超过此值即判定为刷屏"
+    },
+    "anti_flood_mute_duration": {
+        "description": "刷屏禁言时长（秒）",
+        "type": "int",
+        "default": 300,
+        "hint": "检测到刷屏后自动禁言多少秒，默认300秒（5分钟）"
+    },
+    "anti_flood_recall_enabled": {
+        "description": "刷屏消息自动撤回开关",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后刷屏消息会被自动撤回；关闭则只禁言不撤回"
+    },
+    "anti_flood_recall_threshold": {
+        "description": "撤回阈值（条数）",
+        "type": "int",
+        "default": 20,
+        "hint": "刷屏消息数超过此值才进行批量撤回，防止少量超限就被撤回，默认20条"
+    },
     "lexicon_political_enabled": {
         "description": "外置词库-政治敏感类检测",
         "type": "bool",

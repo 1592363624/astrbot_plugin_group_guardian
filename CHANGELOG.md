@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.2.1 - 2026-05-25
+
+### 重大更新
+
+- **防刷屏检测**：新增 `anti_flood.py` 模块，追踪所有消息类型（转发/QQ收藏/图片/JSON等）的发送频率，支持按每秒/每分钟/每小时独立设置速率上限，超限自动禁言并可选批量撤回
+
+### 新增配置（7项）
+
+- `anti_flood_enabled` — 防刷屏总开关（默认开启）
+- `anti_flood_rate_per_second` — 每秒消息上限（默认5条）
+- `anti_flood_rate_per_minute` — 每分钟消息上限（默认20条）
+- `anti_flood_rate_per_hour` — 每小时消息上限（默认60条）
+- `anti_flood_mute_duration` — 刷屏禁言时长秒数（默认300秒）
+- `anti_flood_recall_enabled` — 是否撤回刷屏消息（默认开启）
+- `anti_flood_recall_threshold` — 撤回阈值，超限条数达此值才撤回（默认20条）
+
+### 架构
+
+- **新增 `anti_flood.py`**：`AntiFloodMixin` 类，基于 sliding window 追踪 `(时间戳, 消息ID)`，自动清理过期数据，所有消息类型均计入不区分文本/图片/转发
+- **管线集成**：防刷屏检查在管理员豁免后、内容审核前执行，管理员不受防刷屏限制
+
 ## v2.2.0 - 2026-05-24
 
 ### 重大更新

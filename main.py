@@ -9,6 +9,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.config.astrbot_config import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
+from .anti_flood import AntiFloodMixin
 from .automaton import HybridMatcher, KeywordAutomaton
 from .commands import CommandsMixin
 from .constants import PLUGIN_NAME, PLUGIN_VERSION
@@ -21,7 +22,7 @@ from .web import WebMixin
 
 
 @register(PLUGIN_NAME, "zhaisir", "QQ群智能守护者 - AI审核+群管工具集", PLUGIN_VERSION, "https://github.com/zcj-ui/astrbot_plugin_group_guardian")
-class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin, Star):
+class Main(ModerationMixin, AntiFloodMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin, Star):
     """插件主类。所有 AstrBot 装饰器注册入口，业务逻辑委托给 mixin 模块。"""
 
     def __init__(self, context: Context, config: AstrBotConfig = None):
@@ -74,6 +75,8 @@ class Main(ModerationMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin
         self._stats_cache = {"today_start": 0, "blocked": 0, "passed": 0, "total": 0, "group_stats": {}, "user_stats": {}}
         # LLM 并发信号量：同一时刻最多 5 个 LLM 请求，防止所有 provider 被填满
         self._llm_semaphore = asyncio.Semaphore(5)
+        # 防刷屏追踪数据结构
+        self._init_anti_flood()
         # 注册 WebUI 面板所需的 Quart 路由
         self._register_web_apis()
 
