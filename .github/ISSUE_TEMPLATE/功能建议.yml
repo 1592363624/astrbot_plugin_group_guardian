@@ -42,4 +42,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        > 收到后会尽快评估。如果你有实现思路，欢迎提 PR。
+        > 收到后会尽快评估。
+
+  - type: checkboxes
+    id: willing-pr
+    attributes:
+      label: 是否愿意提交 PR
+      options:
+        - label: 如果可行，我愿意自己实现并提 PR

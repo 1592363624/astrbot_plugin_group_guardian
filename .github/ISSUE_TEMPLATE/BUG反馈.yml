@@ -86,4 +86,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        > 日志越完整，定位越快。如果你已经知道怎么修，欢迎直接提 PR。
+        > 日志越完整，定位越快。
+
+  - type: checkboxes
+    id: willing-pr
+    attributes:
+      label: 是否愿意提交 PR
+      options:
+        - label: 如果可行，我愿意自己实现修复并提 PR
