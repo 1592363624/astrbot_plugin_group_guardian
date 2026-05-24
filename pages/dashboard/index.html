@@ -1274,6 +1274,8 @@ var AUDIT_TOGGLES = [
   { key: 'prompt_injection_enabled', label: '防注入检测', desc: '检测恶意Prompt注入' },
   { key: 'scan_forward_msg', label: '合并转发审核', desc: '解析合并转发消息内容进行审核' },
   { key: 'recall_qq_favorite_enabled', label: 'QQ收藏撤回', desc: '检测到QQ收藏转发内容自动撤回' },
+  { key: 'anti_flood_enabled', label: '防刷屏', desc: '检测消息发送频率，超限自动禁言' },
+  { key: 'anti_flood_recall_enabled', label: '刷屏撤回', desc: '刷屏消息自动批量撤回' },
 ];
 var OCR_TOGGLES = [
   { key: 'ocr_enabled', label: 'OCR识图审核', desc: '使用LLM视觉模型识别图片内容进行审核' },
@@ -1477,7 +1479,14 @@ function renderExtraSettings() {
   c.innerHTML =
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">禁言时长（秒）</div><div class="setting-desc">违规用户自动禁言时长，默认 1800 秒（30分钟）</div></div><input type="number" class="input-sm" id="inputBanDuration" value="' + banDuration + '" min="60" max="2592000" style="width:100px" /></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">审核 LLM 模型</div><div class="setting-desc">用于 AI 审核的 LLM 提供商（留空使用默认）</div></div><select class="input-sm" id="inputProviderId" style="width:220px">' + providerOptions + '</select></div>' +
-    '<div class="setting-item"><div class="setting-info"><div class="setting-label">封禁通知模板</div><div class="setting-desc">支持变量：{name} 用户名、{uid} QQ号、{group} 群号</div></div><input type="text" class="input-sm" id="inputBanNotice" value="' + esc(banNotice) + '" style="width:260px" /></div>';
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">封禁通知模板</div><div class="setting-desc">支持变量：{name} 用户名、{uid} QQ号、{group} 群号</div></div><input type="text" class="input-sm" id="inputBanNotice" value="' + esc(banNotice) + '" style="width:260px" /></div>' +
+    '<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">' +
+    '<h3 style="font-size:13px;font-weight:600;margin-bottom:12px">防刷屏设置</h3>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">每秒上限</div><div class="setting-desc">设 0 关闭每秒检测</div></div><input type="number" class="input-sm" id="inputFloodSec" value="' + (CONFIG.anti_flood_rate_per_second != null ? CONFIG.anti_flood_rate_per_second : 5) + '" min="0" max="99" style="width:80px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">每分钟上限</div><div class="setting-desc">设 0 关闭每分钟检测</div></div><input type="number" class="input-sm" id="inputFloodMin" value="' + (CONFIG.anti_flood_rate_per_minute != null ? CONFIG.anti_flood_rate_per_minute : 20) + '" min="0" max="999" style="width:80px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">每小时上限</div><div class="setting-desc">设 0 关闭每小时检测</div></div><input type="number" class="input-sm" id="inputFloodHour" value="' + (CONFIG.anti_flood_rate_per_hour != null ? CONFIG.anti_flood_rate_per_hour : 60) + '" min="0" max="9999" style="width:80px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">禁言时长（秒）</div><div class="setting-desc">默认 300 秒（5分钟）</div></div><input type="number" class="input-sm" id="inputFloodMute" value="' + (CONFIG.anti_flood_mute_duration != null ? CONFIG.anti_flood_mute_duration : 300) + '" min="60" max="2592000" style="width:100px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">撤回阈值（条数）</div><div class="setting-desc">超限达此数才撤回消息</div></div><input type="number" class="input-sm" id="inputFloodRecallThreshold" value="' + (CONFIG.anti_flood_recall_threshold != null ? CONFIG.anti_flood_recall_threshold : 20) + '" min="1" max="9999" style="width:80px" /></div>';
 }
 
 var PROVIDER_LIST = [];
@@ -1550,11 +1559,57 @@ async function saveSettings() {
   if (ocrSystemPrompt) payload.ocr_custom_system_prompt = ocrSystemPrompt.value.trim();
   var ocrUserPrompt = $('#inputOcrUserPrompt');
   if (ocrUserPrompt) payload.ocr_custom_user_prompt = ocrUserPrompt.value.trim();
+  var floodSec = $('#inputFloodSec');
+  if (floodSec) payload.anti_flood_rate_per_second = parseInt(floodSec.value, 10) || 0;
+  var floodMin = $('#inputFloodMin');
+  if (floodMin) payload.anti_flood_rate_per_minute = parseInt(floodMin.value, 10) || 0;
+  var floodHour = $('#inputFloodHour');
+  if (floodHour) payload.anti_flood_rate_per_hour = parseInt(floodHour.value, 10) || 0;
+  var floodMute = $('#inputFloodMute');
+  if (floodMute) payload.anti_flood_mute_duration = parseInt(floodMute.value, 10) || 300;
+  var floodRecallThreshold = $('#inputFloodRecallThreshold');
+  if (floodRecallThreshold) payload.anti_flood_recall_threshold = parseInt(floodRecallThreshold.value, 10) || 20;
   var res = await safePost('config', payload);
   if (res && res.status === 'error') {
     toast('保存失败: ' + (res.message || ''), 'error');
   } else {
     toast('设置已保存', 'success');
+  }
+}
+
+async function loadFlood() {
+  var res = await safeGet('anti_flood/status');
+  if (!res || res.status === 'error') { toast('加载刷屏数据失败', 'error'); return; }
+  var d = res;
+  $('#floodEnabled').textContent = d.enabled ? '已启用' : '未启用';
+  $('#floodEnabled').style.color = d.enabled ? 'var(--success)' : 'var(--text-muted)';
+  $('#floodTrackedGroups').textContent = d.tracked_groups || 0;
+  $('#floodTrackedUsers').textContent = d.tracked_users || 0;
+  var activeCount = 0;
+  var rows = '';
+  var groups = d.groups || {};
+  for (var gid in groups) {
+    var users = groups[gid].users || {};
+    for (var uid in users) {
+      var u = users[uid];
+      if (!u.total_msgs) continue;
+      activeCount++;
+      var statusBadge = '';
+      if (u.per_second > 3 || u.per_minute > 10) statusBadge = '<span style="background:var(--danger-light);color:var(--danger);font-size:11px;padding:2px 6px;border-radius:4px">预警</span>';
+      else if (u.per_hour > 20) statusBadge = '<span style="background:var(--warning-light);color:var(--warning);font-size:11px;padding:2px 6px;border-radius:4px">关注</span>';
+      else statusBadge = '<span style="color:var(--text-muted);font-size:11px">正常</span>';
+      rows += '<tr><td>' + esc(gid) + '</td><td>' + esc(uid) + '</td><td>' + u.total_msgs + '</td><td>' + u.per_second + '</td><td>' + u.per_minute + '</td><td>' + u.per_hour + '</td><td>' + statusBadge + '</td></tr>';
+    }
+  }
+  $('#floodActiveUsers').textContent = activeCount;
+  $('#floodUserCount').textContent = activeCount + ' 人';
+  $('#floodUserBody').innerHTML = rows || '<tr><td colspan="7" style="color:var(--text-muted);padding:32px;text-align:center">暂无活跃追踪数据</td></tr>';
+  if (CONFIG.anti_flood_rate_per_second != null) {
+    $('#floodRateSecVal').textContent = CONFIG.anti_flood_rate_per_second > 0 ? CONFIG.anti_flood_rate_per_second + ' 条/秒' : '已关闭';
+    $('#floodRateMinVal').textContent = CONFIG.anti_flood_rate_per_minute > 0 ? CONFIG.anti_flood_rate_per_minute + ' 条/分' : '已关闭';
+    $('#floodRateHourVal').textContent = CONFIG.anti_flood_rate_per_hour > 0 ? CONFIG.anti_flood_rate_per_hour + ' 条/时' : '已关闭';
+    $('#floodMuteDuration').textContent = CONFIG.anti_flood_mute_duration + ' 秒';
+    $('#floodRecallThreshold').textContent = CONFIG.anti_flood_recall_enabled ? (CONFIG.anti_flood_recall_threshold + ' 条') : '未开启';
   }
 }
 
@@ -1702,42 +1757,6 @@ async function init() {
   });
 
   $('#btnRefreshFlood').addEventListener('click', loadFlood);
-
-  async function loadFlood() {
-    var res = await safeGet('anti_flood/status');
-    if (!res || res.status === 'error') { toast('加载刷屏数据失败', 'error'); return; }
-    var d = res;
-    $('#floodEnabled').textContent = d.enabled ? '已启用' : '未启用';
-    $('#floodEnabled').style.color = d.enabled ? 'var(--success)' : 'var(--text-muted)';
-    $('#floodTrackedGroups').textContent = d.tracked_groups || 0;
-    $('#floodTrackedUsers').textContent = d.tracked_users || 0;
-    var activeCount = 0;
-    var rows = '';
-    var groups = d.groups || {};
-    for (var gid in groups) {
-      var users = groups[gid].users || {};
-      for (var uid in users) {
-        var u = users[uid];
-        if (!u.total_msgs) continue;
-        activeCount++;
-        var statusBadge = '';
-        if (u.per_second > 3 || u.per_minute > 10) statusBadge = '<span style="background:var(--danger-light);color:var(--danger);font-size:11px;padding:2px 6px;border-radius:4px">预警</span>';
-        else if (u.per_hour > 20) statusBadge = '<span style="background:var(--warning-light);color:var(--warning);font-size:11px;padding:2px 6px;border-radius:4px">关注</span>';
-        else statusBadge = '<span style="color:var(--text-muted);font-size:11px">正常</span>';
-        rows += '<tr><td>' + h(gid) + '</td><td>' + h(uid) + '</td><td>' + u.total_msgs + '</td><td>' + u.per_second + '</td><td>' + u.per_minute + '</td><td>' + u.per_hour + '</td><td>' + statusBadge + '</td></tr>';
-      }
-    }
-    $('#floodActiveUsers').textContent = activeCount;
-    $('#floodUserCount').textContent = activeCount + ' 人';
-    $('#floodUserBody').innerHTML = rows || '<tr><td colspan="7" style="color:var(--text-muted);padding:32px;text-align:center">暂无活跃追踪数据</td></tr>';
-    if (CONFIG.anti_flood_rate_per_second != null) {
-      $('#floodRateSecVal').textContent = CONFIG.anti_flood_rate_per_second > 0 ? CONFIG.anti_flood_rate_per_second + ' 条/秒' : '已关闭';
-      $('#floodRateMinVal').textContent = CONFIG.anti_flood_rate_per_minute > 0 ? CONFIG.anti_flood_rate_per_minute + ' 条/分' : '已关闭';
-      $('#floodRateHourVal').textContent = CONFIG.anti_flood_rate_per_hour > 0 ? CONFIG.anti_flood_rate_per_hour + ' 条/时' : '已关闭';
-      $('#floodMuteDuration').textContent = CONFIG.anti_flood_mute_duration + ' 秒';
-      $('#floodRecallThreshold').textContent = CONFIG.anti_flood_recall_enabled ? (CONFIG.anti_flood_recall_threshold + ' 条') : '未开启';
-    }
-  }
 
   $('#statusDot').style.background = 'var(--success)';
   $('#statusText').textContent = '已连接';
