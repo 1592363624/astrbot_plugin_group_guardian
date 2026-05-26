@@ -2,6 +2,7 @@
 import csv
 import io
 import re
+import sqlite3
 from collections import deque
 
 from astrbot.api import logger
@@ -33,6 +34,20 @@ class WebMixin:
             return await handler(*args, **kwargs)
         _wrapped.__name__ = handler.__name__
         return _wrapped
+
+    @staticmethod
+    def _parse_bool(value, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            val = value.strip().lower()
+            if val in ("1", "true", "yes", "on"):
+                return True
+            if val in ("0", "false", "no", "off", ""):
+                return False
+        return default
 
     def _register_web_apis(self):
         # 遍历路由表，每项含 path / handler / methods / desc，统一注册到 self.context.register_web_api。
@@ -169,7 +184,17 @@ class WebMixin:
         try:
             data = await quart_request.get_json(force=True, silent=True) or {}
             schema = self._config_schema
-            int_ranges = {"moderation_ban_duration": (60, 2592000)}
+            int_ranges = {
+                "moderation_ban_duration": (60, 2592000),
+                "anti_flood_rate_per_second": (0, 999),
+                "anti_flood_rate_per_minute": (0, 99999),
+                "anti_flood_rate_per_hour": (0, 999999),
+                "anti_flood_mute_duration": (0, 2592000),
+                "anti_flood_recall_threshold": (1, 999999),
+                "repeat_detect_window_seconds": (0, 86400),
+                "repeat_detect_count": (2, 9999),
+                "long_text_threshold": (0, 1000000),
+            }
             list_postprocess = {
                 "group_white_list": ("group_white_list", "_group_white_set"),
                 "group_black_list": ("group_black_list", "_group_black_set"),
@@ -183,7 +208,8 @@ class WebMixin:
                     continue
                 field_type = schema[key].get("type", "")
                 if field_type == "bool":
-                    self.config[key] = bool(value)
+                    default_bool = bool(schema[key].get("default", False))
+                    self.config[key] = self._parse_bool(value, default_bool)
                     updated.append(key)
                 elif field_type == "list":
                     val = value
@@ -227,7 +253,7 @@ class WebMixin:
                 self.config["admin_list"] = [str(a).strip() for a in (al if isinstance(al, list) else [al]) if a]
                 self._admin_role_cache.clear()
             if "enabled" in updated:
-                self.config["enabled"] = bool(self.config.get("enabled", True))
+                self.config["enabled"] = self._parse_bool(self.config.get("enabled", True), True)
             if updated:
                 self._save_config_safe()
             return jsonify({"status": "success", "updated": updated})
@@ -235,8 +261,11 @@ class WebMixin:
             return jsonify({"status": "error", "message": str(e)})
 
     async def _web_get_lexicon(self):
-        # 返回外置词库完整内容（所有分类及关键词），供 WebUI 展示和编辑。
-        return jsonify({"status": "success", "data": self._lexicon})
+        # 默认返回分类摘要，避免一次性传输 6 万级词库；full=1 时才返回完整词库。
+        full = str(quart_request.args.get("full", "")).strip().lower() in ("1", "true", "yes")
+        if full:
+            return jsonify({"status": "success", "data": self._lexicon})
+        return jsonify({"status": "success", "data": self._storage.list_lexicon_categories()})
 
     async def _web_get_lexicon_categories(self):
         try:
@@ -321,7 +350,7 @@ class WebMixin:
             category = str(data.get("category", "")).strip().lower()
             pattern = str(data.get("pattern", "")).strip()
             description = str(data.get("description", "")).strip()
-            enabled = bool(data.get("enabled", True))
+            enabled = self._parse_bool(data.get("enabled", True), True)
             if category not in ("swear", "ad"):
                 return jsonify({"status": "error", "message": "规则分类仅支持 swear / ad"})
             if not pattern:
@@ -334,6 +363,8 @@ class WebMixin:
             self._rebuild_rule_matcher(category)
             self._schedule_background_rebuild(f"规则分类 {category} 后台校验重建")
             return jsonify({"status": "success", "data": {"id": saved_id, "category": category}})
+        except sqlite3.IntegrityError:
+            return jsonify({"status": "error", "message": "规则已存在"})
         except ValueError as e:
             return jsonify({"status": "error", "message": str(e)})
         except Exception as e:
@@ -364,7 +395,7 @@ class WebMixin:
             data = await quart_request.get_json(force=True, silent=True) or {}
             rule_id = self._safe_int(data.get("id", 0), 0)
             category = str(data.get("category", "")).strip().lower()
-            enabled = bool(data.get("enabled", True))
+            enabled = self._parse_bool(data.get("enabled", True), True)
             if rule_id <= 0 or category not in ("swear", "ad"):
                 return jsonify({"status": "error", "message": "缺少规则ID或分类无效"})
             ok = self._storage.toggle_moderation_rule(rule_id, enabled)
