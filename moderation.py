@@ -6,6 +6,9 @@ from typing import Dict, Tuple
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
+CONTEXT_MESSAGE_MAX_CHARS = 200
+CONTEXT_TOTAL_MAX_CHARS = 3000
+
 
 class ModerationMixin:
     """审核主流程。由 _handle_message 驱动（注册在 main.py）。

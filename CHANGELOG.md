@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.2.4 - 2026-05-27
+
+### 修复
+
+- **LLM 上下文常量缺失**：补回 `CONTEXT_MESSAGE_MAX_CHARS` 和 `CONTEXT_TOTAL_MAX_CHARS`，避免 LLM 二次审核读取群聊上下文时触发 `NameError`。
+- **版本号一致性**：同步 `metadata.yaml`、`constants.py`、`version.json`、README 与 Dashboard 兜底版本显示到 `v2.2.4`。
+- **群管提示词注入开关生效**：新增 `on_llm_request` 钩子，在启用且免责声明已同意时，为本轮 LLM 请求追加群号、调用者权限和群管工具安全规则；关闭 `prompt_injection_enabled` 后不再注入。
+
+### WebUI
+
+- 将设置页中的“防注入检测”文案调整为“群管提示词注入”，避免用户误解为独立的恶意 Prompt 检测模块。
+
 ## v2.2.2 - 2026-05-25
 
 ### 性能优化
@@ -1058,4 +1070,3 @@
 - 自动审核开关、撤回通知开关
 - 28个群管功能独立开关
 - 8个外置词库类别独立开关
-

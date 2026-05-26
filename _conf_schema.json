@@ -18,7 +18,7 @@
         "hint": "关闭后插件不注入任何提示词，也不提供任何工具"
     },
     "prompt_injection_enabled": {
-        "description": "LLM 提示词注入开关",
+        "description": "LLM 群管提示词注入开关",
         "type": "bool",
         "default": true,
         "hint": "关闭后 LLM 不会收到群管工具的使用说明和权限规则"

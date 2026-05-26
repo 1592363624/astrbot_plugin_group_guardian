@@ -382,7 +382,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
         <div class="logo-icon">G</div>
         <div class="logo-text">
           <span class="logo-title">Group Guardian</span>
-          <span class="logo-ver" id="logoVer">v1.9.7</span>
+          <span class="logo-ver" id="logoVer">v2.2.4</span>
         </div>
       </div>
       <nav class="sidebar-nav">
@@ -844,7 +844,7 @@ async function loadOverview() {
     $('#statUserBlackCount').textContent = d.user_black_list_count != null ? d.user_black_list_count : '--';
     $('#statAdminCount').textContent = d.admin_list_count != null ? d.admin_list_count : '--';
     $('#statTotalLogs').textContent = d.total_logs != null ? d.total_logs : '--';
-    $('#logoVer').textContent = d.version || 'v1.9.7';
+    $('#logoVer').textContent = d.version || 'v2.2.4';
     var banner = $('#disclaimerBanner');
     if (banner) banner.style.display = d.disclaimer_agreed ? 'none' : 'block';
   }
@@ -1271,7 +1271,7 @@ var AUDIT_TOGGLES = [
   { key: 'scan_ad', label: '广告检测', desc: '使用正则检测广告' },
   { key: 'llm_moderation_enabled', label: 'AI审核', desc: '使用LLM进行深度审核' },
   { key: 'llm_moderation_ban', label: 'AI审核后禁言', desc: 'AI判定违规后自动禁言' },
-  { key: 'prompt_injection_enabled', label: '防注入检测', desc: '检测恶意Prompt注入' },
+  { key: 'prompt_injection_enabled', label: '群管提示词注入', desc: '向LLM追加本轮群管权限规则' },
   { key: 'scan_forward_msg', label: '合并转发审核', desc: '解析合并转发消息内容进行审核' },
   { key: 'recall_qq_favorite_enabled', label: 'QQ收藏撤回', desc: '检测到QQ收藏转发内容自动撤回' },
   { key: 'anti_flood_enabled', label: '防刷屏', desc: '检测消息发送频率，超限自动禁言' },
