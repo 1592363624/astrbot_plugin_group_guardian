@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import time
 from collections import deque
 from typing import Dict, Tuple
 
@@ -79,11 +80,74 @@ class Main(ModerationMixin, AntiFloodMixin, LlmToolsMixin, WebMixin, OneBotMixin
         self._llm_semaphore = asyncio.Semaphore(5)
         # 防刷屏追踪数据结构
         self._init_anti_flood()
+        # 热更新重建状态：前端可轮询显示当前是否在后台重建规则/词库
+        self._rebuild_lock = asyncio.Lock()
+        self._rebuild_task = None
+        self._rebuild_pending = False
+        self._rebuild_status = {"state": "idle", "target": "", "message": "空闲", "updated_at": 0}
         # 注册 WebUI 面板所需的 Quart 路由
         self._register_web_apis()
 
     async def terminate(self):
         logger.info("[GroupMgr] 插件卸载，SQLite 存储已自动持久化")
+
+    def _set_rebuild_status(self, state: str, target: str = "", message: str = "") -> None:
+        self._rebuild_status = {
+            "state": state,
+            "target": target,
+            "message": message or state,
+            "updated_at": self._safe_int(time.time(), 0),
+        }
+
+    def _rebuild_rule_matcher(self, category: str) -> None:
+        patterns = self._storage.load_moderation_rules(category)
+        matcher = HybridMatcher()
+        matcher.add_regex_patterns(patterns)
+        matcher.build()
+        if category == "swear":
+            self._swear_matcher = matcher
+        elif category == "ad":
+            self._ad_matcher = matcher
+
+    def _rebuild_lexicon_category(self, category: str) -> None:
+        cat = self._storage.load_lexicon_category(category)
+        if not cat:
+            self._lexicon.pop(category, None)
+            self._compiled_lexicon.pop(category, None)
+            self._invalidate_lexicon_cache(category)
+            return
+        self._lexicon[category] = {
+            "description": cat.get("description", ""),
+            "keywords": cat.get("keywords", []),
+        }
+        if self._lexicon_category_enabled(category):
+            self._compiled_lexicon[category] = self._compile_lexicon_category(category, self._lexicon[category])
+        else:
+            self._compiled_lexicon.pop(category, None)
+            self._invalidate_lexicon_cache(category)
+
+    async def _background_full_rebuild(self, reason: str = "") -> None:
+        while True:
+            self._rebuild_pending = False
+            self._set_rebuild_status("running", "full", reason or "后台重建全部规则")
+            try:
+                async with self._rebuild_lock:
+                    self._lexicon = self._storage.load_lexicon()
+                    self._compiled_lexicon = self._compile_lexicon()
+                    self._rebuild_rule_matcher("swear")
+                    self._rebuild_rule_matcher("ad")
+                self._set_rebuild_status("success", "full", "后台重建完成")
+            except Exception as e:
+                logger.warning(f"[GroupMgr] 后台重建失败: {e}")
+                self._set_rebuild_status("error", "full", str(e))
+            if not self._rebuild_pending:
+                break
+
+    def _schedule_background_rebuild(self, reason: str = "") -> None:
+        self._rebuild_pending = True
+        if self._rebuild_task and not self._rebuild_task.done():
+            return
+        self._rebuild_task = asyncio.create_task(self._background_full_rebuild(reason))
 
     async def _search_keyword_in_messages(self, event: AstrMessageEvent, group_id: str, keyword: str, days: int, search_type: str = "all") -> Tuple[int, list]:
         return await CommandsMixin._search_keyword_in_messages(self, event, group_id, keyword, days, search_type)

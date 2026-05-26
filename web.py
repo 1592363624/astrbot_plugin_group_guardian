@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import csv
 import io
+import re
 from collections import deque
 
 from astrbot.api import logger
@@ -42,6 +43,15 @@ class WebMixin:
                 ("/config", self._web_update_config, ["POST"], "更新配置"),
                 ("/providers", self._web_get_providers, ["GET"], "获取可用LLM Provider列表"),
                 ("/lexicon", self._web_get_lexicon, ["GET"], "获取外置词库内容"),
+                ("/lexicon/categories", self._web_get_lexicon_categories, ["GET"], "获取词库分类统计"),
+                ("/lexicon/keywords", self._web_get_lexicon_keywords, ["GET"], "分页获取分类关键词"),
+                ("/lexicon/keywords/add", self._web_add_lexicon_keyword, ["POST"], "添加词库关键词"),
+                ("/lexicon/keywords/delete", self._web_delete_lexicon_keyword, ["POST"], "删除词库关键词"),
+                ("/rules", self._web_get_rules, ["GET"], "分页获取审核规则"),
+                ("/rules/save", self._web_save_rule, ["POST"], "新增或更新审核规则"),
+                ("/rules/delete", self._web_delete_rule, ["POST"], "删除审核规则"),
+                ("/rules/toggle", self._web_toggle_rule, ["POST"], "启停审核规则"),
+                ("/rules/rebuild_status", self._web_rebuild_status, ["GET"], "获取热更新重建状态"),
                 ("/logs", self._web_get_logs, ["GET"], "获取最近审核日志"),
                 ("/moderation_users", self._web_get_moderation_users, ["GET"], "获取被撤回用户聚合列表"),
                 ("/logs/delete", self._web_delete_logs, ["POST"], "批量删除审核日志"),
@@ -227,6 +237,136 @@ class WebMixin:
     async def _web_get_lexicon(self):
         # 返回外置词库完整内容（所有分类及关键词），供 WebUI 展示和编辑。
         return jsonify({"status": "success", "data": self._lexicon})
+
+    async def _web_get_lexicon_categories(self):
+        try:
+            return jsonify({"status": "success", "data": self._storage.list_lexicon_categories()})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_get_lexicon_keywords(self):
+        try:
+            category = str(quart_request.args.get("category", "")).strip()
+            if not category:
+                return jsonify({"status": "error", "message": "缺少分类"})
+            query = str(quart_request.args.get("q", "")).strip()
+            page = max(1, self._safe_int(quart_request.args.get("page", 1), 1))
+            page_size = min(200, max(1, self._safe_int(quart_request.args.get("page_size", 100), 100)))
+            offset = (page - 1) * page_size
+            items = self._storage.list_lexicon_keywords(category, query, page_size, offset)
+            total = self._storage.count_lexicon_keywords_filtered(category, query)
+            return jsonify({"status": "success", "data": {"items": items, "total": total, "page": page, "page_size": page_size}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_add_lexicon_keyword(self):
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            category = str(data.get("category", "")).strip()
+            keyword = str(data.get("keyword", "")).strip()
+            if not category or not keyword:
+                return jsonify({"status": "error", "message": "缺少分类或关键词"})
+            self._storage.add_lexicon_keyword(category, keyword)
+            self._rebuild_lexicon_category(category)
+            self._schedule_background_rebuild(f"词库分类 {category} 后台校验重建")
+            return jsonify({"status": "success", "data": {"category": category, "keyword": keyword}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_delete_lexicon_keyword(self):
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            keyword_id = self._safe_int(data.get("id", 0), 0)
+            category = str(data.get("category", "")).strip()
+            if keyword_id <= 0 or not category:
+                return jsonify({"status": "error", "message": "缺少关键词ID或分类"})
+            ok = self._storage.delete_lexicon_keyword(keyword_id)
+            if not ok:
+                return jsonify({"status": "error", "message": "未找到关键词"})
+            self._rebuild_lexicon_category(category)
+            self._schedule_background_rebuild(f"词库分类 {category} 后台校验重建")
+            return jsonify({"status": "success", "data": {"id": keyword_id, "category": category}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_get_rules(self):
+        try:
+            category = str(quart_request.args.get("category", "")).strip()
+            query = str(quart_request.args.get("q", "")).strip()
+            enabled_raw = str(quart_request.args.get("enabled", "")).strip().lower()
+            enabled = None
+            if enabled_raw in ("0", "1"):
+                enabled = int(enabled_raw)
+            page = max(1, self._safe_int(quart_request.args.get("page", 1), 1))
+            page_size = min(200, max(1, self._safe_int(quart_request.args.get("page_size", 50), 50)))
+            offset = (page - 1) * page_size
+            items = self._storage.list_moderation_rules(category, enabled, query, page_size, offset)
+            total = self._storage.count_moderation_rules_filtered(category, enabled, query)
+            return jsonify({"status": "success", "data": {"items": items, "total": total, "page": page, "page_size": page_size}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_save_rule(self):
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            rule_id = self._safe_int(data.get("id", 0), 0)
+            category = str(data.get("category", "")).strip().lower()
+            pattern = str(data.get("pattern", "")).strip()
+            description = str(data.get("description", "")).strip()
+            enabled = bool(data.get("enabled", True))
+            if category not in ("swear", "ad"):
+                return jsonify({"status": "error", "message": "规则分类仅支持 swear / ad"})
+            if not pattern:
+                return jsonify({"status": "error", "message": "规则内容不能为空"})
+            try:
+                re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                return jsonify({"status": "error", "message": f"正则无效: {e}"})
+            saved_id = self._storage.save_moderation_rule(category, pattern, description, enabled, rule_id)
+            self._rebuild_rule_matcher(category)
+            self._schedule_background_rebuild(f"规则分类 {category} 后台校验重建")
+            return jsonify({"status": "success", "data": {"id": saved_id, "category": category}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_delete_rule(self):
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            rule_id = self._safe_int(data.get("id", 0), 0)
+            category = str(data.get("category", "")).strip().lower()
+            if rule_id <= 0 or category not in ("swear", "ad"):
+                return jsonify({"status": "error", "message": "缺少规则ID或分类无效"})
+            ok = self._storage.delete_moderation_rule(rule_id)
+            if not ok:
+                return jsonify({"status": "error", "message": "未找到规则"})
+            self._rebuild_rule_matcher(category)
+            self._schedule_background_rebuild(f"规则分类 {category} 后台校验重建")
+            return jsonify({"status": "success", "data": {"id": rule_id, "category": category}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_toggle_rule(self):
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            rule_id = self._safe_int(data.get("id", 0), 0)
+            category = str(data.get("category", "")).strip().lower()
+            enabled = bool(data.get("enabled", True))
+            if rule_id <= 0 or category not in ("swear", "ad"):
+                return jsonify({"status": "error", "message": "缺少规则ID或分类无效"})
+            ok = self._storage.toggle_moderation_rule(rule_id, enabled)
+            if not ok:
+                return jsonify({"status": "error", "message": "未找到规则"})
+            self._rebuild_rule_matcher(category)
+            self._schedule_background_rebuild(f"规则分类 {category} 后台校验重建")
+            return jsonify({"status": "success", "data": {"id": rule_id, "enabled": enabled, "category": category}})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_rebuild_status(self):
+        try:
+            return jsonify({"status": "success", "data": self._rebuild_status})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
 
     async def _web_get_logs(self):
         # 分页查询审核日志（SQLite），limit 参数最大 200 条。

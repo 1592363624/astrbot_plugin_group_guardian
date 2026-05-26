@@ -172,6 +172,98 @@ class SQLiteStorage:
                 ).fetchall()
         return [r["pattern"] for r in rows]
 
+    def list_moderation_rules(
+        self,
+        category: str = "",
+        enabled: Optional[int] = None,
+        query: str = "",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[dict]:
+        sql = "SELECT id, category, pattern, enabled, description FROM moderation_rules WHERE 1=1"
+        params: List[object] = []
+        if category:
+            sql += " AND category=?"
+            params.append(category)
+        if enabled in (0, 1):
+            sql += " AND enabled=?"
+            params.append(enabled)
+        if query:
+            sql += " AND (pattern LIKE ? OR description LIKE ?)"
+            like = f"%{query}%"
+            params.extend([like, like])
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "category": r["category"],
+                "pattern": r["pattern"],
+                "enabled": bool(r["enabled"]),
+                "description": r["description"] or "",
+            }
+            for r in rows
+        ]
+
+    def count_moderation_rules_filtered(
+        self, category: str = "", enabled: Optional[int] = None, query: str = ""
+    ) -> int:
+        sql = "SELECT COUNT(*) AS c FROM moderation_rules WHERE 1=1"
+        params: List[object] = []
+        if category:
+            sql += " AND category=?"
+            params.append(category)
+        if enabled in (0, 1):
+            sql += " AND enabled=?"
+            params.append(enabled)
+        if query:
+            sql += " AND (pattern LIKE ? OR description LIKE ?)"
+            like = f"%{query}%"
+            params.extend([like, like])
+        with self._connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return int(row["c"] or 0)
+
+    def save_moderation_rule(
+        self,
+        category: str,
+        pattern: str,
+        description: str = "",
+        enabled: bool = True,
+        rule_id: int = 0,
+    ) -> int:
+        with self._connect() as conn:
+            if rule_id > 0:
+                conn.execute(
+                    "UPDATE moderation_rules SET category=?, pattern=?, description=?, enabled=? WHERE id=?",
+                    (category, pattern, description, 1 if enabled else 0, rule_id),
+                )
+                conn.commit()
+                return rule_id
+            cur = conn.execute(
+                "INSERT INTO moderation_rules(category, pattern, enabled, description) VALUES(?, ?, ?, ?)",
+                (category, pattern, 1 if enabled else 0, description),
+            )
+            conn.commit()
+            return int(cur.lastrowid or 0)
+
+    def delete_moderation_rule(self, rule_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM moderation_rules WHERE id=?", (rule_id,))
+            conn.commit()
+        return bool(cur.rowcount)
+
+    def toggle_moderation_rule(self, rule_id: int, enabled: bool) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE moderation_rules SET enabled=? WHERE id=?",
+                (1 if enabled else 0, rule_id),
+            )
+            conn.commit()
+        return bool(cur.rowcount)
+
     def count_moderation_rules(self) -> int:
         with self._connect() as conn:
             row = conn.execute("SELECT COUNT(*) AS c FROM moderation_rules").fetchone()
@@ -270,6 +362,80 @@ class SQLiteStorage:
                     "keywords": [r["keyword"] for r in rows],
                 }
         return result
+
+    def list_lexicon_categories(self) -> List[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT c.name, c.description, COUNT(k.id) AS keyword_count "
+                "FROM lexicon_categories c "
+                "LEFT JOIN lexicon_keywords k ON k.category = c.name "
+                "GROUP BY c.name, c.description ORDER BY c.name"
+            ).fetchall()
+        return [
+            {
+                "name": r["name"],
+                "description": r["description"] or "",
+                "keyword_count": int(r["keyword_count"] or 0),
+            }
+            for r in rows
+        ]
+
+    def load_lexicon_category(self, category: str) -> Optional[dict]:
+        with self._connect() as conn:
+            cat = conn.execute(
+                "SELECT name, description FROM lexicon_categories WHERE name=?",
+                (category,),
+            ).fetchone()
+            if not cat:
+                return None
+            rows = conn.execute(
+                "SELECT keyword FROM lexicon_keywords WHERE category=? ORDER BY id",
+                (category,),
+            ).fetchall()
+        return {
+            "name": cat["name"],
+            "description": cat["description"] or "",
+            "keywords": [r["keyword"] for r in rows],
+        }
+
+    def list_lexicon_keywords(
+        self, category: str, query: str = "", limit: int = 200, offset: int = 0
+    ) -> List[dict]:
+        sql = "SELECT id, keyword FROM lexicon_keywords WHERE category=?"
+        params: List[object] = [category]
+        if query:
+            sql += " AND keyword LIKE ?"
+            params.append(f"%{query}%")
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [{"id": r["id"], "keyword": r["keyword"]} for r in rows]
+
+    def count_lexicon_keywords_filtered(self, category: str, query: str = "") -> int:
+        sql = "SELECT COUNT(*) AS c FROM lexicon_keywords WHERE category=?"
+        params: List[object] = [category]
+        if query:
+            sql += " AND keyword LIKE ?"
+            params.append(f"%{query}%")
+        with self._connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return int(row["c"] or 0)
+
+    def add_lexicon_keyword(self, category: str, keyword: str) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO lexicon_keywords(category, keyword) VALUES(?, ?)",
+                (category, keyword),
+            )
+            conn.commit()
+        return int(cur.lastrowid or 0)
+
+    def delete_lexicon_keyword(self, keyword_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM lexicon_keywords WHERE id=?", (keyword_id,))
+            conn.commit()
+        return bool(cur.rowcount)
 
     @staticmethod
     def _log_to_row(log: dict) -> tuple:

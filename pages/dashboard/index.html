@@ -382,7 +382,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
         <div class="logo-icon">G</div>
         <div class="logo-text">
           <span class="logo-title">Group Guardian</span>
-          <span class="logo-ver" id="logoVer">v2.2.4</span>
+          <span class="logo-ver" id="logoVer">v2.2.5</span>
         </div>
       </div>
       <nav class="sidebar-nav">
@@ -640,6 +640,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           <div class="card"><div class="card-header"><h2>词库设置</h2></div><div class="settings-list" id="settingsLexicon"></div></div>
           <div class="card"><div class="card-header"><h2>功能开关</h2></div><div class="settings-list" id="settingsFeatures"></div></div>
           <div class="card card-full"><div class="card-header"><h2>高级设置</h2></div><div class="settings-list" id="settingsExtra"></div></div>
+          <div class="card card-full"><div class="card-header"><h2>规则热更新</h2></div><div class="settings-list" id="settingsRuleCenter"></div></div>
           <div class="card card-full"><div class="card-header"><h2>全量配置（Schema）</h2></div><div class="settings-list" id="settingsAll"></div></div>
           <div class="card card-full"><div class="card-header"><h2>名单管理</h2></div><div class="list-manage" id="settingsLists"></div></div>
         </div>
@@ -845,7 +846,7 @@ async function loadOverview() {
     $('#statUserBlackCount').textContent = d.user_black_list_count != null ? d.user_black_list_count : '--';
     $('#statAdminCount').textContent = d.admin_list_count != null ? d.admin_list_count : '--';
     $('#statTotalLogs').textContent = d.total_logs != null ? d.total_logs : '--';
-    $('#logoVer').textContent = d.version || 'v2.2.4';
+    $('#logoVer').textContent = d.version || 'v2.2.5';
     var banner = $('#disclaimerBanner');
     if (banner) banner.style.display = d.disclaimer_agreed ? 'none' : 'block';
   }
@@ -1318,6 +1319,8 @@ var FEATURE_TOGGLES = [
   { key: 'group_portrait_enabled', label: '群头像设置' },
   { key: 'group_sign_enabled', label: '群打卡' },
 ];
+var RULES_STATE = { category: 'swear', q: '', enabled: '', page: 1, pageSize: 20 };
+var KEYWORDS_STATE = { category: '', q: '', page: 1, pageSize: 50 };
 
 var MANUAL_SETTING_KEYS = {
   enabled: true,
@@ -1412,10 +1415,217 @@ async function loadSettings() {
   renderToggles('settingsFeatures', FEATURE_TOGGLES);
   renderListSettings();
   renderExtraSettings();
+  renderRuleCenterShell();
   renderAllSettings();
   renderOcrSettings();
   loadProviderList();
   loadMigrationStatus();
+  loadRuleCenter();
+}
+
+function renderRuleCenterShell() {
+  var c = $('#settingsRuleCenter');
+  if (!c) return;
+  c.innerHTML = ''
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+    + '  <div style="min-width:0">'
+    + '    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + '      <select class="input-sm" id="rulesCategory" style="width:120px"><option value="swear">脏话规则</option><option value="ad">广告规则</option></select>'
+    + '      <select class="input-sm" id="rulesEnabled" style="width:110px"><option value="">全部状态</option><option value="1">已启用</option><option value="0">已禁用</option></select>'
+    + '      <input class="input-sm" id="rulesQuery" style="width:180px" placeholder="搜索规则/备注" />'
+    + '      <button class="btn btn-ghost btn-sm" id="btnRulesSearch">查询</button>'
+    + '      <button class="btn btn-primary btn-sm" id="btnRuleAdd">新增规则</button>'
+    + '    </div>'
+    + '    <div id="ruleRebuildStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">重建状态：--</div>'
+    + '    <div id="rulesTableWrap" style="overflow:auto"></div>'
+    + '  </div>'
+    + '  <div style="min-width:0">'
+    + '    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + '      <select class="input-sm" id="kwCategory" style="width:180px"></select>'
+    + '      <input class="input-sm" id="kwQuery" style="width:150px" placeholder="搜索关键词" />'
+    + '      <button class="btn btn-ghost btn-sm" id="btnKwSearch">查询</button>'
+    + '    </div>'
+    + '    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'
+    + '      <input class="input-sm" id="kwNew" style="flex:1;min-width:120px" placeholder="输入新关键词" />'
+    + '      <button class="btn btn-primary btn-sm" id="btnKwAdd">新增关键词</button>'
+    + '    </div>'
+    + '    <div id="kwTableWrap" style="overflow:auto"></div>'
+    + '  </div>'
+    + '</div>';
+
+  $('#btnRulesSearch').addEventListener('click', function() {
+    RULES_STATE.category = $('#rulesCategory').value;
+    RULES_STATE.enabled = $('#rulesEnabled').value;
+    RULES_STATE.q = $('#rulesQuery').value.trim();
+    RULES_STATE.page = 1;
+    loadRules();
+  });
+  $('#btnRuleAdd').addEventListener('click', function() { openRuleEditor(); });
+  $('#btnKwSearch').addEventListener('click', function() {
+    KEYWORDS_STATE.category = $('#kwCategory').value;
+    KEYWORDS_STATE.q = $('#kwQuery').value.trim();
+    KEYWORDS_STATE.page = 1;
+    loadKeywords();
+  });
+  $('#btnKwAdd').addEventListener('click', addKeyword);
+}
+
+async function loadRuleCenter() {
+  await Promise.all([loadRules(), loadKeywordCategories(), loadRebuildStatus()]);
+}
+
+async function loadRebuildStatus() {
+  var res = await safeGet('rules/rebuild_status');
+  if (!res || res.status === 'error') return;
+  var d = res;
+  var txt = '重建状态：' + (d.message || d.state || '--');
+  if (d.target) txt += ' [' + d.target + ']';
+  $('#ruleRebuildStatus').textContent = txt;
+}
+
+async function loadRules() {
+  var res = await safeGet('rules', {
+    category: RULES_STATE.category,
+    enabled: RULES_STATE.enabled,
+    q: RULES_STATE.q,
+    page: RULES_STATE.page,
+    page_size: RULES_STATE.pageSize,
+  });
+  var wrap = $('#rulesTableWrap');
+  if (!wrap) return;
+  if (!res || res.status === 'error') { wrap.innerHTML = '<div class="empty">规则加载失败</div>'; return; }
+  var items = res.items || [];
+  var total = res.total || 0;
+  var rows = items.map(function(item) {
+    return '<tr>'
+      + '<td style="white-space:nowrap">' + esc(item.category) + '</td>'
+      + '<td style="word-break:break-all">' + esc(item.pattern) + '</td>'
+      + '<td>' + esc(item.description || '-') + '</td>'
+      + '<td>' + (item.enabled ? '启用' : '禁用') + '</td>'
+      + '<td style="white-space:nowrap">'
+      + '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '" data-pattern="' + escAttr(item.pattern) + '" data-description="' + escAttr(item.description || '') + '" data-enabled="' + (item.enabled ? '1' : '0') + '">编辑</button> '
+      + '<button class="btn btn-ghost btn-sm" data-act="toggle" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '" data-enabled="' + (item.enabled ? '0' : '1') + '">' + (item.enabled ? '禁用' : '启用') + '</button> '
+      + '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '">删除</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">共 ' + total + ' 条规则</div>'
+    + '<table class="log-table"><thead><tr><th>分类</th><th>规则</th><th>备注</th><th>状态</th><th>操作</th></tr></thead><tbody>'
+    + (rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">暂无规则</td></tr>')
+    + '</tbody></table>';
+  $$('[data-act]', wrap).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var act = btn.getAttribute('data-act');
+      if (act === 'edit') {
+        openRuleEditor({
+          id: parseInt(btn.getAttribute('data-id'), 10) || 0,
+          category: btn.getAttribute('data-category') || 'swear',
+          pattern: btn.getAttribute('data-pattern') || '',
+          description: btn.getAttribute('data-description') || '',
+          enabled: btn.getAttribute('data-enabled') === '1',
+        });
+        return;
+      }
+      if (act === 'toggle') {
+        var r = await safePost('rules/toggle', { id: parseInt(btn.getAttribute('data-id'), 10) || 0, category: btn.getAttribute('data-category'), enabled: btn.getAttribute('data-enabled') === '1' });
+        if (r && r.status !== 'error') { toast('规则状态已更新', 'success'); loadRules(); loadRebuildStatus(); }
+        else toast('规则状态更新失败', 'error');
+        return;
+      }
+      if (act === 'delete') {
+        var r2 = await safePost('rules/delete', { id: parseInt(btn.getAttribute('data-id'), 10) || 0, category: btn.getAttribute('data-category') });
+        if (r2 && r2.status !== 'error') { toast('规则已删除', 'success'); loadRules(); loadRebuildStatus(); }
+        else toast('规则删除失败', 'error');
+      }
+    });
+  });
+}
+
+function openRuleEditor(rule) {
+  rule = rule || { id: 0, category: RULES_STATE.category || 'swear', pattern: '', description: '', enabled: true };
+  showModal(
+    rule.id ? '编辑规则' : '新增规则',
+    '<div style="display:grid;gap:10px">'
+      + '<label>分类<br><select class="input-sm" id="ruleEditCategory" style="width:160px"><option value="swear"' + (rule.category === 'swear' ? ' selected' : '') + '>脏话</option><option value="ad"' + (rule.category === 'ad' ? ' selected' : '') + '>广告</option></select></label>'
+      + '<label>规则内容<br><textarea class="input-md" id="ruleEditPattern" rows="4" style="width:100%">' + esc(rule.pattern) + '</textarea></label>'
+      + '<label>备注<br><input class="input-sm" id="ruleEditDesc" style="width:100%" value="' + escAttr(rule.description || '') + '" /></label>'
+      + '<label><input type="checkbox" id="ruleEditEnabled" ' + (rule.enabled ? 'checked' : '') + ' /> 启用</label>'
+      + '</div>',
+    '<button class="btn btn-ghost btn-sm" id="btnRuleCancel">取消</button><button class="btn btn-primary btn-sm" id="btnRuleSave">保存</button>'
+  );
+  $('#btnRuleCancel').addEventListener('click', closeModal);
+  $('#btnRuleSave').addEventListener('click', async function() {
+    var payload = {
+      id: rule.id || 0,
+      category: $('#ruleEditCategory').value,
+      pattern: $('#ruleEditPattern').value.trim(),
+      description: $('#ruleEditDesc').value.trim(),
+      enabled: $('#ruleEditEnabled').checked,
+    };
+    var res = await safePost('rules/save', payload);
+    if (!res || res.status === 'error') { toast('规则保存失败: ' + ((res && res.message) || ''), 'error'); return; }
+    closeModal();
+    toast('规则已保存', 'success');
+    loadRules();
+    loadRebuildStatus();
+  });
+}
+
+async function loadKeywordCategories() {
+  var res = await safeGet('lexicon/categories');
+  var sel = $('#kwCategory');
+  if (!sel) return;
+  if (!res || res.status === 'error') { sel.innerHTML = '<option value="">加载失败</option>'; return; }
+  var items = res || [];
+  if (!KEYWORDS_STATE.category && items.length) KEYWORDS_STATE.category = items[0].name;
+  sel.innerHTML = items.map(function(item) {
+    var selected = item.name === KEYWORDS_STATE.category ? ' selected' : '';
+    return '<option value="' + escAttr(item.name) + '"' + selected + '>' + esc(item.name + ' (' + item.keyword_count + ')') + '</option>';
+  }).join('');
+  sel.onchange = function() { KEYWORDS_STATE.category = sel.value; KEYWORDS_STATE.page = 1; loadKeywords(); };
+  loadKeywords();
+}
+
+async function loadKeywords() {
+  var wrap = $('#kwTableWrap');
+  if (!wrap || !KEYWORDS_STATE.category) return;
+  var res = await safeGet('lexicon/keywords', {
+    category: KEYWORDS_STATE.category,
+    q: KEYWORDS_STATE.q,
+    page: KEYWORDS_STATE.page,
+    page_size: KEYWORDS_STATE.pageSize,
+  });
+  if (!res || res.status === 'error') { wrap.innerHTML = '<div class="empty">关键词加载失败</div>'; return; }
+  var items = res.items || [];
+  var total = res.total || 0;
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">分类 ' + esc(KEYWORDS_STATE.category) + '，共 ' + total + ' 个关键词</div>'
+    + '<table class="log-table"><thead><tr><th>ID</th><th>关键词</th><th>操作</th></tr></thead><tbody>'
+    + (items.map(function(item) {
+        return '<tr><td>' + item.id + '</td><td style="word-break:break-all">' + esc(item.keyword) + '</td><td><button class="btn btn-danger btn-sm" data-kw-del="' + item.id + '">删除</button></td></tr>';
+      }).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px">暂无关键词</td></tr>')
+    + '</tbody></table>';
+  $$('[data-kw-del]', wrap).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var res2 = await safePost('lexicon/keywords/delete', { id: parseInt(btn.getAttribute('data-kw-del'), 10) || 0, category: KEYWORDS_STATE.category });
+      if (!res2 || res2.status === 'error') { toast('删除关键词失败', 'error'); return; }
+      toast('关键词已删除', 'success');
+      loadKeywordCategories();
+      loadRebuildStatus();
+    });
+  });
+}
+
+async function addKeyword() {
+  var inp = $('#kwNew');
+  if (!inp || !KEYWORDS_STATE.category) return;
+  var keyword = inp.value.trim();
+  if (!keyword) return;
+  var res = await safePost('lexicon/keywords/add', { category: KEYWORDS_STATE.category, keyword: keyword });
+  if (!res || res.status === 'error') { toast('新增关键词失败: ' + ((res && res.message) || ''), 'error'); return; }
+  inp.value = '';
+  toast('关键词已新增', 'success');
+  loadKeywordCategories();
+  loadRebuildStatus();
 }
 
 function renderAllSettings() {
@@ -1768,6 +1978,10 @@ async function loadFlood() {
 
 async function init() {
   initTabs();
+  setInterval(function() {
+    var active = $('#tab-settings');
+    if (active && active.classList.contains('active')) loadRebuildStatus();
+  }, 3000);
 
   $('#btnRefreshAll').addEventListener('click', loadOverview);
   $('#btnRefreshTodayStats').addEventListener('click', loadOverview);

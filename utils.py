@@ -252,6 +252,69 @@ class UtilitiesMixin:
             compiled[cat_name] = ac
         return compiled
 
+    def _compile_lexicon_category(self, cat_name: str, cat_data: Dict) -> KeywordAutomaton:
+        """按单个分类增量编译 AC 自动机并写入缓存。"""
+        keywords = (cat_data or {}).get("keywords", [])
+        raw_parts: List[str] = []
+        min_len = 2 if cat_name == "illegal_url" else 3
+        for kw in keywords:
+            kw = kw.strip()
+            if not kw:
+                continue
+            if "+" in kw and cat_name != "illegal_url":
+                parts = [p.strip() for p in kw.split("+") if p.strip()]
+                raw_parts.extend([part for part in parts if len(part) >= min_len])
+            elif len(kw) >= min_len:
+                raw_parts.append(kw)
+        ac = KeywordAutomaton()
+        if raw_parts:
+            ac.add_keywords(raw_parts)
+            ac.build()
+        cache_dir = Path(self._data_dir) / "ac_cache"
+        cache_dir.mkdir(exist_ok=True)
+        cache_path = cache_dir / f"{cat_name}.pkl"
+        try:
+            with open(cache_path, "wb") as f:
+                pickle.dump(ac, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except OSError:
+            logger.debug("[GroupMgr] 写入 AC 缓存失败", exc_info=True)
+        return ac
+
+    def _lexicon_category_enabled(self, cat_name: str) -> bool:
+        """判断词库分类是否在当前配置中启用。"""
+        enable_other = self._cfg("lexicon_other_enabled", True)
+        switch_map = {
+            "political": self._cfg("lexicon_political_enabled", True),
+            "porn": self._cfg("lexicon_porn_enabled", True),
+            "violent_terror": self._cfg("lexicon_violent_enabled", True),
+            "reactionary": self._cfg("lexicon_reactionary_enabled", True),
+            "weapons": self._cfg("lexicon_weapons_enabled", True),
+            "corruption": self._cfg("lexicon_corruption_enabled", True),
+            "illegal_url": self._cfg("lexicon_illegal_url_enabled", True),
+            "other": enable_other,
+            "supplement": enable_other,
+            "livelihood": enable_other,
+            "tencent_ban": enable_other,
+            "ad": True,
+        }
+        return switch_map.get(cat_name, True)
+
+    def _invalidate_lexicon_cache(self, cat_name: str = "") -> None:
+        """删除单个分类或全部 AC 缓存文件。"""
+        cache_dir = Path(self._data_dir) / "ac_cache"
+        if not cache_dir.exists():
+            return
+        try:
+            if cat_name:
+                cache_path = cache_dir / f"{cat_name}.pkl"
+                if cache_path.exists():
+                    cache_path.unlink()
+                return
+            for item in cache_dir.glob("*.pkl"):
+                item.unlink()
+        except OSError:
+            logger.debug("[GroupMgr] 删除 AC 缓存失败", exc_info=True)
+
     def _check_lexicon(self, text: str) -> Dict[str, bool]:
         # 用 AC 自动机逐类扫描文本，返回各分类是否命中的 dict。
         result = {}
