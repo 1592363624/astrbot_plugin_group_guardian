@@ -89,6 +89,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 .btn-outline:hover{border-color:var(--primary);color:var(--primary)}
 .btn-tab{background:transparent;border:1px solid var(--border);color:var(--text-secondary);padding:6px 12px}
 .btn-tab.active{background:var(--primary-light);border-color:var(--primary);color:var(--primary);font-weight:600}
+.rules-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rules-pane{min-width:0;background:linear-gradient(180deg,var(--surface),var(--surface));border:1px solid var(--border);border-radius:10px;padding:12px;box-shadow:var(--shadow);animation:fadeIn .25s ease}
+.rules-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.rules-toolbar .input-sm{width:170px}
+.rules-status{font-size:12px;color:var(--text-muted);margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--info-light);border:1px solid var(--border)}
+.rules-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.rules-subtle{font-size:12px;color:var(--text-muted)}
 .input-sm{border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-size:13px;outline:none;transition:border-color .15s;width:180px;background:var(--surface);color:var(--text-primary)}
 .input-sm:focus{border-color:var(--primary)}
 .input-md{border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:13px;outline:none;transition:border-color .15s;width:100%;background:var(--surface);color:var(--text-primary)}
@@ -353,6 +360,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
   .ranking-container{padding:12px}
   .ranking-item{padding:6px 0}
   #disclaimerBanner{font-size:12px;padding:10px 14px}
+  .rules-layout{grid-template-columns:1fr;gap:10px}
+  .rules-pane{padding:10px}
+  .rules-toolbar{gap:6px}
+  .rules-toolbar .input-sm{width:100%}
+  .rules-toolbar .btn{flex:1;justify-content:center}
+  .rules-table-wrap .log-table{min-width:700px}
+  .rules-subtle{font-size:11px}
 }
 @keyframes barGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 @keyframes barSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -1520,34 +1534,34 @@ function renderRuleCenterShell() {
   var c = $('#rulesCenterPage');
   if (!c) return;
   c.innerHTML = ''
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
-    + '  <div style="min-width:0">'
-    + '    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + '<div class="rules-layout">'
+    + '  <div class="rules-pane">'
+    + '    <div class="rules-toolbar">'
     + '      <div id="rulesCategorySeg"></div>'
     + '      <div id="rulesEnabledSeg"></div>'
     + '      <input class="input-sm" id="rulesQuery" style="width:180px" placeholder="搜索规则/备注" />'
     + '      <button class="btn btn-ghost btn-sm" id="btnRulesSearch">查询</button>'
     + '      <button class="btn btn-primary btn-sm" id="btnRuleAdd">新增规则</button>'
     + '    </div>'
-    + '    <div id="ruleRebuildStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">重建状态：--</div>'
-    + '    <div id="rulesTableWrap" style="overflow:auto"></div>'
+    + '    <div id="ruleRebuildStatus" class="rules-status">重建状态：--</div>'
+    + '    <div class="rules-table-wrap" id="rulesTableWrap"></div>'
     + '  </div>'
-    + '  <div style="min-width:0">'
-    + '    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + '  <div class="rules-pane">'
+    + '    <div class="rules-toolbar">'
     + '      <input class="input-sm" id="kwCategorySearch" list="kwCategoryList" style="width:220px" placeholder="搜索或输入分类" />'
     + '      <datalist id="kwCategoryList"></datalist>'
-    + '      <span id="kwCategoryMeta" style="font-size:12px;color:var(--text-muted)"></span>'
+    + '      <span id="kwCategoryMeta" class="rules-subtle"></span>'
     + '      <input class="input-sm" id="kwQuery" style="width:150px" placeholder="搜索关键词" />'
     + '      <button class="btn btn-ghost btn-sm" id="btnKwSearch">查询</button>'
     + '    </div>'
-    + '    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'
+    + '    <div class="rules-toolbar">'
     + '      <input class="input-sm" id="kwNew" style="flex:1;min-width:120px" placeholder="输入新关键词" />'
     + '      <button class="btn btn-primary btn-sm" id="btnKwAdd">新增关键词</button>'
     + '      <button class="btn btn-ghost btn-sm" id="btnKwBatchAdd">批量新增</button>'
     + '      <button class="btn btn-ghost btn-sm" id="btnKwExport">导出</button>'
     + '      <button class="btn btn-danger btn-sm" id="btnKwBatchDelete">批量删除</button>'
     + '    </div>'
-    + '    <div id="kwTableWrap" style="overflow:auto"></div>'
+    + '    <div class="rules-table-wrap" id="kwTableWrap"></div>'
     + '  </div>'
     + '</div>';
 
@@ -1604,7 +1618,12 @@ async function loadRebuildStatus() {
   var txt = '重建状态：' + (d.message || d.state || '--');
   if (d.target) txt += ' [' + d.target + ']';
   var box = $('#ruleRebuildStatus');
-  if (box) box.textContent = txt;
+  if (box) {
+    box.textContent = txt;
+    box.style.transform = 'translateY(-1px)';
+    box.style.transition = 'transform .18s ease';
+    setTimeout(function() { if (box) box.style.transform = 'translateY(0)'; }, 120);
+  }
 }
 
 async function loadRules() {
