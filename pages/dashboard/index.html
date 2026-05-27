@@ -1497,8 +1497,21 @@ function renderRuleCenterShell() {
     { value: '1', label: '已启用' },
     { value: '0', label: '已禁用' },
   ]);
-  bindSegmented($('#rulesCategorySeg'), RULES_STATE.category, function(v) { RULES_STATE.category = v; RULES_STATE.page = 1; renderRuleCenterShell(); loadRules(); });
-  bindSegmented($('#rulesEnabledSeg'), RULES_STATE.enabled, function(v) { RULES_STATE.enabled = v; RULES_STATE.page = 1; renderRuleCenterShell(); loadRules(); });
+  bindSegmented($('#rulesCategorySeg'), RULES_STATE.category, function(v) {
+    RULES_STATE.category = v;
+    RULES_STATE.page = 1;
+    renderRuleCenterShell();
+    loadRuleCenter();
+  });
+  bindSegmented($('#rulesEnabledSeg'), RULES_STATE.enabled, function(v) {
+    RULES_STATE.enabled = v;
+    RULES_STATE.page = 1;
+    renderRuleCenterShell();
+    loadRuleCenter();
+  });
+
+  $('#rulesQuery').value = RULES_STATE.q || '';
+  $('#kwQuery').value = KEYWORDS_STATE.q || '';
 
   $('#btnRulesSearch').addEventListener('click', function() {
     RULES_STATE.q = $('#rulesQuery').value.trim();
