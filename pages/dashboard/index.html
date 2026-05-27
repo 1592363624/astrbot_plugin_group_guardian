@@ -87,6 +87,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 .btn-danger:hover{background:var(--danger);color:#fff}
 .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}
 .btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-tab{background:transparent;border:1px solid var(--border);color:var(--text-secondary);padding:6px 12px}
+.btn-tab.active{background:var(--primary-light);border-color:var(--primary);color:var(--primary);font-weight:600}
 .input-sm{border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-size:13px;outline:none;transition:border-color .15s;width:180px;background:var(--surface);color:var(--text-primary)}
 .input-sm:focus{border-color:var(--primary)}
 .input-md{border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:13px;outline:none;transition:border-color .15s;width:100%;background:var(--surface);color:var(--text-primary)}
@@ -602,6 +604,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 
       <div class="tab-panel" id="tab-settings">
         <div class="page-header"><h1>设置</h1><button class="btn btn-primary btn-sm" id="btnSaveSettings">保存更改</button></div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="settings-list" style="padding:12px 16px">
+            <div id="settingsSectionTabs" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          </div>
+        </div>
         <div class="lin-disclaimer-card" id="disclaimerCard">
           <div class="lin-disclaimer-header">
             <div class="lin-header-left">
@@ -630,7 +637,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
             <p class="lin-hint">同意后插件功能立即生效。<a href="javascript:void(0)" id="openDisclaimer2">了解详情</a></p>
           </div>
         </div>
-        <div class="card" id="migrationCard">
+        <div class="card" id="migrationCard" data-settings-section="advanced">
           <div class="card-header"><h2>SQLite 迁移助手</h2><button class="btn btn-ghost btn-sm" id="btnRefreshMigration">刷新状态</button></div>
           <div class="settings-list">
             <div style="padding:12px 0;color:var(--text-secondary);line-height:1.7">
@@ -643,14 +650,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           </div>
         </div>
         <div class="settings-grid">
-          <div class="card"><div class="card-header"><h2>核心设置</h2></div><div class="settings-list" id="settingsCore"></div></div>
-          <div class="card"><div class="card-header"><h2>审核设置</h2></div><div class="settings-list" id="settingsAudit"></div></div>
-          <div class="card"><div class="card-header"><h2>OCR识图设置</h2></div><div class="settings-list" id="settingsOcr"></div></div>
-          <div class="card"><div class="card-header"><h2>词库设置</h2></div><div class="settings-list" id="settingsLexicon"></div></div>
-          <div class="card"><div class="card-header"><h2>功能开关</h2></div><div class="settings-list" id="settingsFeatures"></div></div>
-          <div class="card card-full"><div class="card-header"><h2>高级设置</h2></div><div class="settings-list" id="settingsExtra"></div></div>
-          <div class="card card-full"><div class="card-header"><h2>全量配置（Schema）</h2></div><div class="settings-list" id="settingsAll"></div></div>
-          <div class="card card-full"><div class="card-header"><h2>名单管理</h2></div><div class="list-manage" id="settingsLists"></div></div>
+          <div class="card" data-settings-section="core"><div class="card-header"><h2>核心设置</h2></div><div class="settings-list" id="settingsCore"></div></div>
+          <div class="card" data-settings-section="audit"><div class="card-header"><h2>审核设置</h2></div><div class="settings-list" id="settingsAudit"></div></div>
+          <div class="card" data-settings-section="ocr"><div class="card-header"><h2>OCR识图设置</h2></div><div class="settings-list" id="settingsOcr"></div></div>
+          <div class="card" data-settings-section="lexicon"><div class="card-header"><h2>词库设置</h2></div><div class="settings-list" id="settingsLexicon"></div></div>
+          <div class="card" data-settings-section="feature"><div class="card-header"><h2>功能开关</h2></div><div class="settings-list" id="settingsFeatures"></div></div>
+          <div class="card card-full" data-settings-section="advanced"><div class="card-header"><h2>高级设置</h2></div><div class="settings-list" id="settingsExtra"></div></div>
+          <div class="card card-full" data-settings-section="schema"><div class="card-header"><h2>全量配置（Schema）</h2></div><div class="settings-list" id="settingsAll"></div></div>
+          <div class="card card-full" data-settings-section="list"><div class="card-header"><h2>名单管理</h2></div><div class="list-manage" id="settingsLists"></div></div>
         </div>
       </div>
     </main>
@@ -707,6 +714,7 @@ let CURRENT_GROUP = null;
 let CURRENT_MEMBERS = [];
 let CACHED_GROUP_ID = null;
 let REBUILD_STATUS_TIMER = null;
+var SETTINGS_SECTION = 'core';
 
 function $(sel, ctx) { ctx = ctx || document; return ctx.querySelector(sel); }
 function $$(sel, ctx) { ctx = ctx || document; return [].slice.call(ctx.querySelectorAll(sel)); }
@@ -838,7 +846,7 @@ function switchTab(tabName) {
   }
   if (tabName === 'records') { loadUsers(); loadLogs(); }
   if (tabName === 'flood') loadFlood();
-  if (tabName === 'rules') loadRuleCenter();
+  if (tabName === 'rules') { renderRuleCenterShell(); loadRuleCenter(); }
   if (tabName === 'settings') loadSettings();
 }
 
@@ -1467,8 +1475,45 @@ async function loadSettings() {
   renderExtraSettings();
   renderAllSettings();
   renderOcrSettings();
+  renderSettingsSectionTabs();
+  applySettingsSection();
   loadProviderList();
   loadMigrationStatus();
+}
+
+function renderSettingsSectionTabs() {
+  var tabs = $('#settingsSectionTabs');
+  if (!tabs) return;
+  var items = [
+    { key: 'core', label: '核心' },
+    { key: 'audit', label: '审核' },
+    { key: 'ocr', label: 'OCR' },
+    { key: 'lexicon', label: '词库' },
+    { key: 'feature', label: '功能' },
+    { key: 'list', label: '名单' },
+    { key: 'advanced', label: '高级' },
+    { key: 'schema', label: '全量' },
+    { key: 'all', label: '全部' }
+  ];
+  tabs.innerHTML = items.map(function(it) {
+    var active = SETTINGS_SECTION === it.key;
+    return '<button type="button" class="btn btn-sm btn-tab ' + (active ? 'active' : '') + '" data-settings-tab="' + it.key + '">' + esc(it.label) + '</button>';
+  }).join('');
+  $$('[data-settings-tab]', tabs).forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      SETTINGS_SECTION = btn.getAttribute('data-settings-tab') || 'core';
+      renderSettingsSectionTabs();
+      applySettingsSection();
+    });
+  });
+}
+
+function applySettingsSection() {
+  var showAll = SETTINGS_SECTION === 'all';
+  $$('[data-settings-section]').forEach(function(card) {
+    var sec = card.getAttribute('data-settings-section') || '';
+    card.style.display = (showAll || sec === SETTINGS_SECTION) ? '' : 'none';
+  });
 }
 
 function renderRuleCenterShell() {
@@ -1558,7 +1603,8 @@ async function loadRebuildStatus() {
   var d = res;
   var txt = '重建状态：' + (d.message || d.state || '--');
   if (d.target) txt += ' [' + d.target + ']';
-  $('#ruleRebuildStatus').textContent = txt;
+  var box = $('#ruleRebuildStatus');
+  if (box) box.textContent = txt;
 }
 
 async function loadRules() {
@@ -2251,7 +2297,7 @@ async function init() {
   initTabs();
   if (!REBUILD_STATUS_TIMER) {
     REBUILD_STATUS_TIMER = setInterval(function() {
-      var active = $('#tab-settings');
+      var active = $('#tab-rules');
       if (active && active.classList.contains('active')) loadRebuildStatus();
     }, 3000);
   }
