@@ -1374,9 +1374,19 @@ function renderSegmented(name, value, items) {
 
 function bindSegmented(root, currentValue, onChange) {
   if (!root) return;
+  var setActive = function(nextValue) {
+    $$('[data-seg-value]', root).forEach(function(x) {
+      var active = String(x.getAttribute('data-seg-value')) === String(nextValue);
+      x.classList.toggle('btn-primary', active);
+      x.classList.toggle('btn-ghost', !active);
+    });
+  };
+  setActive(currentValue);
   $$('[data-seg-value]', root).forEach(function(btn) {
     btn.addEventListener('click', function() {
-      onChange(btn.getAttribute('data-seg-value'));
+      var nextValue = btn.getAttribute('data-seg-value');
+      setActive(nextValue);
+      onChange(nextValue);
     });
   });
 }
