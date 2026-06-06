@@ -47,6 +47,18 @@ class SQLiteStorage:
                 ids.append(item)
         return ids
 
+    @staticmethod
+    def _non_empty_strings(values: Iterable[object]) -> List[str]:
+        items: List[str] = []
+        seen = set()
+        for value in values or []:
+            item = str(value).strip()
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            items.append(item)
+        return items
+
     @contextmanager
     def _connect(self):
         # 使用 contextmanager 确保连接在退出 with 块时总是通过 finally 关闭，防止泄漏。
@@ -729,11 +741,30 @@ class SQLiteStorage:
         ids = self._positive_ints(ids)
         if not ids:
             return 0
-        placeholders = ",".join("?" for _ in ids)
+        total = 0
         with self._connect() as conn:
-            cur = conn.execute(f"DELETE FROM moderation_logs WHERE id IN ({placeholders})", ids)
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                cur = conn.execute(f"DELETE FROM moderation_logs WHERE id IN ({placeholders})", chunk)
+                total += int(cur.rowcount or 0)
             conn.commit()
-        return cur.rowcount if cur.rowcount else 0
+        return total
+
+    def delete_logs_by_users(self, user_ids: Iterable[object]) -> int:
+        # 按用户 ID 批量删除审核日志，避免 WebUI 为了拿日志 id 拉取全量导出。
+        users = self._non_empty_strings(user_ids)
+        if not users:
+            return 0
+        total = 0
+        with self._connect() as conn:
+            for start in range(0, len(users), 500):
+                chunk = users[start:start + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                cur = conn.execute(f"DELETE FROM moderation_logs WHERE user_id IN ({placeholders})", chunk)
+                total += int(cur.rowcount or 0)
+            conn.commit()
+        return total
 
     def delete_all_logs(self) -> int:
         # 清空审核日志表，返回删除的总条数。

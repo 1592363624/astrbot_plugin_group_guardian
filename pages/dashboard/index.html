@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="img-src * data: blob:; default-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src *;" />
   <title>Group Guardian - QQ群智能守护者</title>
   <script>try{var t=localStorage.getItem('gg_theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+  <script src="/api/plugin/page/bridge-sdk.js"></script>
   <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -265,8 +266,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 #disclaimerBanner{background:var(--warning-light)!important;border-color:var(--warning)!important;color:var(--warning)!important}
 #disclaimerBanner a{color:var(--primary)!important}
 #disclaimerBanner strong{color:inherit}
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:100;padding:4px 0 env(safe-area-inset-bottom,4px);justify-content:space-around}
-.mobile-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;flex:1;color:var(--text-muted);text-decoration:none;font-size:10px;font-weight:500;transition:color .15s}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:100;padding:4px 0 env(safe-area-inset-bottom,4px);justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.mobile-nav::-webkit-scrollbar{display:none}
+.mobile-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;flex:0 0 62px;min-width:62px;color:var(--text-muted);text-decoration:none;font-size:10px;font-weight:500;transition:color .15s;white-space:nowrap}
 .mobile-nav-item svg{width:20px;height:20px;fill:currentColor}
 .mobile-nav-item.active{color:var(--primary)}
 @media(max-width:900px){
@@ -817,13 +819,28 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
       <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5a2 2 0 0 0-2-2zm-8 14H7v-2h4v2zm6-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
       <span>规则</span>
     </a>
+    <a class="mobile-nav-item" data-tab="join">
+      <svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3zm3 11h-3v3h-2v-3H7v-2h3V8h2v3h3v2z"/></svg>
+      <span>入群</span>
+    </a>
+    <a class="mobile-nav-item" data-tab="perms">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.4-8 4v2h16v-2c0-2.6-5.3-4-8-4zm7-5V7h-2V5h2V3h2v2h2v2h-2v2h-2z"/></svg>
+      <span>权限</span>
+    </a>
+    <a class="mobile-nav-item" data-tab="groupcfg">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4V4zm0 6h10v4H4v-4zm0 6h16v4H4v-4zm12-6h4v4h-4v-4z"/></svg>
+      <span>多群</span>
+    </a>
+    <a class="mobile-nav-item" data-tab="tasks">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zm-7-2 5-5-1.4-1.4-3.6 3.6-1.6-1.6L9 14l3 3z"/></svg>
+      <span>任务</span>
+    </a>
     <a class="mobile-nav-item" data-tab="settings">
       <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
       <span>设置</span>
     </a>
   </nav>
 
-  <script src="/api/plugin/page/bridge-sdk.js"></script>
   <script>
 var bridge = null;
 var apiGet = null;
@@ -839,9 +856,16 @@ let CURRENT_MEMBERS = [];
 let CACHED_GROUP_ID = null;
 let REBUILD_STATUS_TIMER = null;
 var SETTINGS_SECTION = 'core';
+var CONFIG_PROMISE = null;
+var API_TIMEOUT_MS = 12000;
 
 function $(sel, ctx) { ctx = ctx || document; return ctx.querySelector(sel); }
 function $$(sel, ctx) { ctx = ctx || document; return [].slice.call(ctx.querySelectorAll(sel)); }
+function bindIfExists(id, fn, eventName) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener(eventName || 'click', fn);
+  return el;
+}
 
 function toast(msg, type) {
   type = type || 'info';
@@ -855,11 +879,31 @@ function toast(msg, type) {
 
 function esc(s) {
   var d = document.createElement('div');
-  d.textContent = s || '';
+  d.textContent = (s === null || s === undefined) ? '' : String(s);
   return d.innerHTML;
 }
 function escAttr(s) {
   return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function cssAttr(s) {
+  var v = (s === null || s === undefined) ? '' : String(s);
+  if (window.CSS && CSS.escape) return CSS.escape(v);
+  return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function isApiError(r) {
+  return !!(r && typeof r === 'object' && r.status === 'error');
+}
+
+function withTimeout(promise, label, timeoutMs) {
+  timeoutMs = timeoutMs || API_TIMEOUT_MS;
+  return Promise.race([
+    promise,
+    new Promise(function(_, reject) {
+      setTimeout(function() { reject(new Error((label || '请求') + '超时')); }, timeoutMs);
+    })
+  ]);
 }
 
 function parseIntOrDefault(value, fallback) {
@@ -923,7 +967,8 @@ function unwrapApiResponse(r) {
 
 async function safeGet(path, params) {
   try {
-    var r = await apiGet(path, params);
+    if (!apiGet) return { status: 'error', message: 'API 不可用' };
+    var r = await withTimeout(apiGet(path, params), 'GET ' + path);
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch(e2) {} }
     return unwrapApiResponse(r);
   } catch(e) {
@@ -933,13 +978,45 @@ async function safeGet(path, params) {
 }
 async function safePost(path, body) {
   try {
-    var r = await apiPost(path, body);
+    if (!apiPost) return { status: 'error', message: 'API 不可用' };
+    var r = await withTimeout(apiPost(path, body), 'POST ' + path);
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch(e2) {} }
     return unwrapApiResponse(r);
   } catch(e) {
     console.error('[safePost]', path, e);
     return { status: 'error', message: String(e) };
   }
+}
+
+async function loadConfigCached(force) {
+  if (!force && CONFIG_PROMISE) return CONFIG_PROMISE;
+  CONFIG_PROMISE = safeGet('config').then(function(res) {
+    if (!isApiError(res)) CONFIG = Object.assign({}, CONFIG, res);
+    return res;
+  }).catch(function(e) {
+    return { status: 'error', message: String(e) };
+  });
+  var out = await CONFIG_PROMISE;
+  if (isApiError(out)) CONFIG_PROMISE = null;
+  return out;
+}
+
+function apiCallFailed(r) {
+  return r === null || r === undefined || isApiError(r);
+}
+
+function apiErrMsg(r, fallback) {
+  return (r && r.message) ? r.message : (fallback || '操作失败');
+}
+
+async function postOrToast(path, body, successMsg, errorPrefix, successType) {
+  var r = await safePost(path, body);
+  if (apiCallFailed(r)) {
+    toast((errorPrefix || '操作失败') + ': ' + apiErrMsg(r, ''), 'error');
+    return false;
+  }
+  if (successMsg) toast(successMsg, successType || 'success');
+  return true;
 }
 
 function showModal(title, bodyHtml, footerHtml) {
@@ -1012,7 +1089,7 @@ function switchTab(tabName) {
     CURRENT_GROUP = null;
     CACHED_GROUP_ID = null;
     CURRENT_MEMBERS = [];
-    loadGroups();
+    loadGroups(false);
     loadAdmins();
   }
   if (tabName === 'records') { loadUsers(); loadLogs(); }
@@ -1035,10 +1112,11 @@ function initTabs() {
 }
 
 async function loadOverview() {
-  var res = await safeGet('stats');
-  var todayRes = await safeGet('today_stats');
+  var pair = await Promise.all([safeGet('stats'), safeGet('today_stats')]);
+  var res = pair[0];
+  var todayRes = pair[1];
   var d = res;
-  if (d && d.status === 'error') { d = null; }
+  if (isApiError(d)) { d = null; }
   if (d) {
     $('#statTodayBlocked').textContent = d.today_blocked != null ? d.today_blocked : '--';
     $('#statTodayTotal').textContent = d.today_total != null ? d.today_total : '--';
@@ -1052,7 +1130,7 @@ async function loadOverview() {
     var banner = $('#disclaimerBanner');
     if (banner) banner.style.display = d.disclaimer_agreed ? 'none' : 'block';
   }
-  if (todayRes && todayRes.status !== 'error') {
+  if (todayRes && !isApiError(todayRes)) {
     renderRanking('groupRanking', todayRes.group_ranking, function(item) {
       return '<span class="ranking-name">群 ' + esc(item.group_id) + '</span><span class="ranking-count">' + item.count + '</span>';
     });
@@ -1081,17 +1159,19 @@ function setDashRange(days) {
 
 async function loadDashboard() {
   var days = DASH_DAYS;
-  loadTrend(days);
-  loadDistribution(days);
-  loadHourly();
-  loadGroupRankHistory(days);
+  await Promise.all([
+    loadTrend(days),
+    loadDistribution(days),
+    loadHourly(),
+    loadGroupRankHistory(days),
+  ]);
 }
 
 async function loadTrend(days) {
   var c = $('#trendChart');
   c.innerHTML = '<p class="dash-empty" style="opacity:.5">加载中...</p>';
   var res = await safeGet('dashboard/trend', { days: days });
-  var hasData = res && res.status !== 'error' && res.length;
+  var hasData = res && !isApiError(res) && res.length;
   if (!hasData) {
     c.innerHTML = '<p class="dash-empty">近 ' + days + ' 天暂无趋势数据</p>';
     return;
@@ -1108,7 +1188,7 @@ async function loadTrend(days) {
     var label = d.date ? d.date.slice(5) : '';
     var total = d.blocked + d.passed;
     var tip = d.date + ' | 拦截:' + d.blocked + ' 放行:' + d.passed + ' 总:' + total;
-    html += '<div class="bar-col" title="' + esc(tip) + '">'
+    html += '<div class="bar-col" title="' + escAttr(tip) + '">'
       + '<div class="bar-fill-value" style="margin-bottom:2px;font-size:9px;opacity:.7">' + (total || '') + '</div>'
       + '<div style="display:flex;flex-direction:column-reverse;align-items:center;width:100%;height:' + cssMaxH + 'px">'
       + '<div class="bar-fill blocked" style="height:' + blockedH + 'px" title="拦截:' + d.blocked + '"></div>'
@@ -1124,7 +1204,7 @@ async function loadDistribution(days) {
   var c = $('#distChart');
   c.innerHTML = '<p class="dash-empty" style="opacity:.5">加载中...</p>';
   var res = await safeGet('dashboard/distribution', { days: days });
-  if (!res || res.status === 'error' || !res.length) { c.innerHTML = '<p class="dash-empty">近 ' + days + ' 天暂无违规分布数据</p>'; return; }
+  if (!res || isApiError(res) || !res.length) { c.innerHTML = '<p class="dash-empty">近 ' + days + ' 天暂无违规分布数据</p>'; return; }
   var total = res.reduce(function(s, d) { return s + d.count; }, 0);
   var maxCount = res[0].count || 1;
   var html = '';
@@ -1134,7 +1214,7 @@ async function loadDistribution(days) {
     var pctOfTotal = total > 0 ? Math.round(d.count / total * 100) : 0;
     var label = d.reason || '未知';
     html += '<div class="bar-hrow">'
-      + '<span class="bar-hlabel" title="' + esc(label) + ' (' + d.count + '次, ' + pctOfTotal + '%)">' + esc(label) + '</span>'
+      + '<span class="bar-hlabel" title="' + escAttr(label + ' (' + d.count + '次, ' + pctOfTotal + '%)') + '">' + esc(label) + '</span>'
       + '<div class="bar-hfill dist" style="width:' + Math.max(pct, 2) + '%" title="' + d.count + '次 / ' + pctOfTotal + '%">'
       + '<span class="bar-hcount">' + d.count + '</span>'
       + '</div></div>';
@@ -1146,7 +1226,7 @@ async function loadHourly() {
   var c = $('#hourlyChart');
   c.innerHTML = '<p class="dash-empty" style="opacity:.5">加载中...</p>';
   var res = await safeGet('dashboard/hourly', { days: 7 });
-  if (!res || res.status === 'error' || !res.length) { c.innerHTML = '<p class="dash-empty">近7天暂无时段数据</p>'; return; }
+  if (!res || isApiError(res) || !res.length) { c.innerHTML = '<p class="dash-empty">近7天暂无时段数据</p>'; return; }
   var hourMap = {};
   res.forEach(function(d) { hourMap[d.hour] = d.count; });
   var maxCount = 0;
@@ -1171,7 +1251,7 @@ async function loadGroupRankHistory(days) {
   var c = $('#groupRankHistory');
   c.innerHTML = '<p class="dash-empty" style="opacity:.5">加载中...</p>';
   var res = await safeGet('dashboard/group_ranking', { days: days, top: 10 });
-  if (!res || res.status === 'error' || !res.length) { c.innerHTML = '<p class="dash-empty">近 ' + days + ' 天暂无群排行数据</p>'; return; }
+  if (!res || isApiError(res) || !res.length) { c.innerHTML = '<p class="dash-empty">近 ' + days + ' 天暂无群排行数据</p>'; return; }
   var maxCount = res[0].count || 1;
   var total = res.reduce(function(s, d) { return s + d.count; }, 0);
   var html = '';
@@ -1181,7 +1261,7 @@ async function loadGroupRankHistory(days) {
     var label = '群' + (d.group_id || '?');
     var pctOfTotal = total > 0 ? Math.round(d.count / total * 100) : 0;
     html += '<div class="bar-hrow">'
-      + '<span class="bar-hlabel" title="' + esc(label) + ' (' + d.count + '次, ' + pctOfTotal + '%)">' + esc(label) + '</span>'
+      + '<span class="bar-hlabel" title="' + escAttr(label + ' (' + d.count + '次, ' + pctOfTotal + '%)') + '">' + esc(label) + '</span>'
       + '<div class="bar-hfill dist" style="width:' + Math.max(pct, 2) + '%" title="' + d.count + '次 / ' + pctOfTotal + '%">'
       + '<span class="bar-hcount">' + d.count + '</span>'
       + '</div></div>';
@@ -1189,11 +1269,11 @@ async function loadGroupRankHistory(days) {
   c.innerHTML = html;
 }
 
-async function loadGroups() {
+async function loadGroups(force) {
   var grid = $('#groupGrid');
   grid.innerHTML = '<p class="empty">加载中...</p>';
-  var res = await safeGet('groups');
-  if (res && res.status === 'error') { grid.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  var res = await safeGet('groups', force ? { force: 1 } : undefined);
+  if (isApiError(res)) { grid.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   CONFIG._groups = res;
   renderGroups(res);
 }
@@ -1212,13 +1292,13 @@ function renderGroups(groups) {
     if (g.is_white) badges.push('<span class="group-badge badge-white">白名单</span>');
     if (g.is_black) badges.push('<span class="group-badge badge-black">黑名单</span>');
     if (g.is_white && g.today_blocked > 0) badges.push('<span class="group-badge badge-blocked">今日拦截 ' + g.today_blocked + '</span>');
-    return '<div class="group-card ' + cls + '" data-gid="' + esc(g.group_id) + '">' +
-      '<img class="group-avatar" data-gid-avatar="' + esc(g.group_id) + '" />' +
+    return '<div class="group-card ' + cls + '" data-gid="' + escAttr(g.group_id) + '">' +
+      '<img class="group-avatar" data-gid-avatar="' + escAttr(g.group_id) + '" />' +
       '<div class="group-info"><div class="group-name">' + esc(g.group_name || '未命名群') + '</div>' +
       '<div class="group-meta"><span class="group-id">' + esc(g.group_id) + '</span><span class="group-members">' + g.member_count + ' 人</span>' + badges.join('') + '</div></div>' +
       '<div class="group-actions">' +
-        (g.is_white ? '<button class="btn btn-outline btn-sm" data-action="remove-white" data-gid="' + esc(g.group_id) + '">移出白名单</button>' : '<button class="btn btn-primary btn-sm" data-action="add-white" data-gid="' + esc(g.group_id) + '">加入白名单</button>') +
-        (g.is_black ? '<button class="btn btn-outline btn-sm" data-action="remove-black" data-gid="' + esc(g.group_id) + '">移出黑名单</button>' : '<button class="btn btn-danger btn-sm" data-action="add-black" data-gid="' + esc(g.group_id) + '">加入黑名单</button>') +
+        (g.is_white ? '<button class="btn btn-outline btn-sm" data-action="remove-white" data-gid="' + escAttr(g.group_id) + '">移出白名单</button>' : '<button class="btn btn-primary btn-sm" data-action="add-white" data-gid="' + escAttr(g.group_id) + '">加入白名单</button>') +
+        (g.is_black ? '<button class="btn btn-outline btn-sm" data-action="remove-black" data-gid="' + escAttr(g.group_id) + '">移出黑名单</button>' : '<button class="btn btn-danger btn-sm" data-action="add-black" data-gid="' + escAttr(g.group_id) + '">加入黑名单</button>') +
       '</div></div>';
   }).join('');
 
@@ -1241,20 +1321,21 @@ function renderGroups(groups) {
       e.stopPropagation();
       var action = btn.dataset.action;
       var gid = btn.dataset.gid;
-      if (action === 'add-white') { await safePost('whitelist/add', { group_id: gid }); toast('已加入白名单', 'success'); }
-      else if (action === 'remove-white') { await safePost('whitelist/remove', { group_id: gid }); toast('已移出白名单', 'success'); }
+      var okAction = true;
+      if (action === 'add-white') okAction = await postOrToast('whitelist/add', { group_id: gid }, '已加入白名单', '加入白名单失败');
+      else if (action === 'remove-white') okAction = await postOrToast('whitelist/remove', { group_id: gid }, '已移出白名单', '移出白名单失败');
       else if (action === 'add-black') {
         var ok = await confirmModal({ title: '加入群黑名单', body: '确认将群 <b>' + esc(gid) + '</b> 加入黑名单？<br>加入后本插件将不再处理该群的任何消息与审核。', okText: '加入黑名单', danger: true });
         if (!ok) return;
-        await safePost('blacklist/add', { group_id: gid }); toast('已加入黑名单', 'danger');
+        okAction = await postOrToast('blacklist/add', { group_id: gid }, '已加入黑名单', '加入黑名单失败', 'danger');
       }
-      else if (action === 'remove-black') { await safePost('blacklist/remove', { group_id: gid }); toast('已移出黑名单', 'success'); }
-      loadGroups();
+      else if (action === 'remove-black') okAction = await postOrToast('blacklist/remove', { group_id: gid }, '已移出黑名单', '移出黑名单失败');
+      if (okAction) loadGroups(true);
     });
   });
 }
 
-async function openMemberPanel(gid) {
+async function openMemberPanel(gid, force) {
   CURRENT_GROUP = gid;
   var panel = $('#memberPanel');
   panel.style.display = 'block';
@@ -1262,8 +1343,10 @@ async function openMemberPanel(gid) {
   $('#memberList').innerHTML = '<p class="empty">加载中...</p>';
   var groupGrid = $('#groupGrid');
   if (groupGrid) { var card = groupGrid.closest('.card'); if (card) card.style.display = 'none'; }
-  var res = await safeGet('group_members', { group_id: gid });
-  if (res && res.status === 'error') { $('#memberList').innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  var params = { group_id: gid };
+  if (force) params.force = 1;
+  var res = await safeGet('group_members', params);
+  if (isApiError(res)) { $('#memberList').innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   CURRENT_MEMBERS = res;
   CACHED_GROUP_ID = gid;
   renderMembers(CURRENT_MEMBERS);
@@ -1295,19 +1378,20 @@ function renderMembers(members) {
   $('#memberList').innerHTML = batchBar + filtered.map(function(m) {
     var roleName = ROLE_NAME[m.role] || m.role;
     var roleCls = m.role === 'owner' ? 'role-owner' : m.role === 'admin' ? 'role-admin' : 'role-member';
-    var titleHtml = m.title ? '<span class="member-title" title="' + esc(m.title) + '">' + esc(m.title) + '</span>' : '';
+    var uidAttr = escAttr(m.user_id);
+    var titleHtml = m.title ? '<span class="member-title" title="' + escAttr(m.title) + '">' + esc(m.title) + '</span>' : '';
     var adminBtn = m.is_plugin_admin
-      ? '<button class="btn btn-outline btn-sm" data-action="remove-admin" data-uid="' + esc(m.user_id) + '">移除管理</button>'
-      : '<button class="btn btn-primary btn-sm" data-action="add-admin" data-uid="' + esc(m.user_id) + '">设为管理</button>';
+      ? '<button class="btn btn-outline btn-sm" data-action="remove-admin" data-uid="' + uidAttr + '">移除管理</button>'
+      : '<button class="btn btn-primary btn-sm" data-action="add-admin" data-uid="' + uidAttr + '">设为管理</button>';
     // 远程操作：禁言（可填时长分钟）/ 解禁 / 踢（群主/管理员后端会拦截并提示）
     var opBtns =
-      '<input class="input-sm rm-dur" data-uid="' + esc(m.user_id) + '" type="number" min="1" placeholder="分钟" value="10" style="width:64px" title="禁言时长(分钟)" />' +
-      '<button class="btn btn-outline btn-sm" data-rm="ban" data-uid="' + esc(m.user_id) + '">禁言</button>' +
-      '<button class="btn btn-outline btn-sm" data-rm="unban" data-uid="' + esc(m.user_id) + '">解禁</button>' +
-      '<button class="btn btn-danger btn-sm" data-rm="kick" data-uid="' + esc(m.user_id) + '">踢</button>';
+      '<input class="input-sm rm-dur" data-uid="' + uidAttr + '" type="number" min="1" placeholder="分钟" value="10" style="width:64px" title="禁言时长(分钟)" />' +
+      '<button class="btn btn-outline btn-sm" data-rm="ban" data-uid="' + uidAttr + '">禁言</button>' +
+      '<button class="btn btn-outline btn-sm" data-rm="unban" data-uid="' + uidAttr + '">解禁</button>' +
+      '<button class="btn btn-danger btn-sm" data-rm="kick" data-uid="' + uidAttr + '">踢</button>';
     return '<div class="member-item">' +
-      '<input type="checkbox" class="member-ck" data-uid="' + esc(m.user_id) + '" style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0" />' +
-      '<img class="member-avatar" data-uid-avatar="' + esc(m.user_id) + '" />' +
+      '<input type="checkbox" class="member-ck" data-uid="' + uidAttr + '" style="width:15px;height:15px;accent-color:var(--primary);flex-shrink:0" />' +
+      '<img class="member-avatar" data-uid-avatar="' + uidAttr + '" />' +
       '<span class="member-name">' + esc(m.display_name) + '</span>' +
       '<span class="member-role ' + roleCls + '">' + roleName + '</span>' + titleHtml +
       '<span class="member-uid">' + esc(m.user_id) + '</span>' +
@@ -1330,8 +1414,8 @@ function renderMembers(members) {
         okText: '设为管理员'
       });
       if (!ok) return;
-      await safePost('admin/add', { user_id: uid });
-      toast('已添加为管理员', 'success');
+      var added = await postOrToast('admin/add', { user_id: uid }, '已添加为管理员', '添加管理员失败');
+      if (!added) return;
       CACHED_GROUP_ID = null;
       openMemberPanel(CURRENT_GROUP);
     });
@@ -1345,8 +1429,8 @@ function renderMembers(members) {
         okText: '移除', danger: true
       });
       if (!ok) return;
-      await safePost('admin/remove', { user_id: uid });
-      toast('已移除管理员', 'success');
+      var removed = await postOrToast('admin/remove', { user_id: uid }, '已移除管理员', '移除管理员失败');
+      if (!removed) return;
       CACHED_GROUP_ID = null;
       openMemberPanel(CURRENT_GROUP);
     });
@@ -1358,11 +1442,11 @@ function renderMembers(members) {
       var uid = btn.dataset.uid;
       var params = { user_id: uid };
       if (action === 'ban') {
-        var durInput = $('.rm-dur[data-uid="' + uid + '"]', $('#memberList'));
+        var durInput = $('.rm-dur[data-uid="' + cssAttr(uid) + '"]', $('#memberList'));
         params.duration_minutes = parseInt(durInput && durInput.value) || 10;
       }
       var r = await safePost('remote/execute', { group_id: CURRENT_GROUP, action: action, params: params });
-      var isErr = r && r.status === 'error';
+      var isErr = isApiError(r);
       var msg = (r && r.message) || (r && r.data && r.data.message) || (isErr ? '操作失败' : '已执行');
       toast(msg, isErr ? 'error' : 'success');
     });
@@ -1389,17 +1473,17 @@ function renderMembers(members) {
     if (action === 'set_card') params.card = extra;
     if (action === 'set_title') params.title = extra;
     var r = await safePost('remote/execute', { group_id: CURRENT_GROUP, action: action, params: params });
-    var isErr = r && r.status === 'error';
+    var isErr = isApiError(r);
     toast((r && r.message) || (r && r.data && r.data.message) || '已执行', isErr ? 'error' : 'success');
+    if (isErr) return;
     CACHED_GROUP_ID = null;
     openMemberPanel(CURRENT_GROUP);
   });
 }
 
 async function loadAdmins() {
-  var res = await safeGet('config');
-  if (res && res.status === 'error') return;
-  CONFIG = Object.assign({}, CONFIG, res);
+  var res = await loadConfigCached();
+  if (isApiError(res)) return;
   renderAdmins();
 }
 
@@ -1408,13 +1492,12 @@ function renderAdmins() {
   var c = $('#adminList');
   if (!admins.length) { c.innerHTML = '<p class="empty">暂无管理员</p>'; return; }
   c.innerHTML = admins.map(function(uid) {
-    return '<span class="admin-tag">' + esc(String(uid)) + '<button class="btn-remove" data-uid="' + esc(String(uid)) + '">&times;</button></span>';
+    return '<span class="admin-tag">' + esc(String(uid)) + '<button class="btn-remove" data-uid="' + escAttr(String(uid)) + '">&times;</button></span>';
   }).join('');
   $$('.btn-remove', c).forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      await safePost('admin/remove', { user_id: btn.dataset.uid });
-      toast('已移除管理员', 'success');
-      loadAdmins();
+      var ok = await postOrToast('admin/remove', { user_id: btn.dataset.uid }, '已移除管理员', '移除管理员失败');
+      if (ok) loadAdmins();
     });
   });
 }
@@ -1423,7 +1506,7 @@ async function loadUsers() {
   var c = $('#userContainer');
   c.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('moderation_users');
-  if (res && res.status === 'error') { c.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  if (isApiError(res)) { c.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   renderUsers(res);
 }
 
@@ -1437,9 +1520,9 @@ function renderUsers(users) {
     u.records.forEach(function(r) { if (r.group_id && groups.indexOf(r.group_id) === -1) groups.push(r.group_id); });
     var groupStr = groups.slice(0, 2).join(', ') + (groups.length > 2 ? '...' : '');
     var latest = u.records[u.records.length - 1];
-    return '<div class="user-card" data-uid="' + esc(u.user_id) + '">' +
+    return '<div class="user-card" data-uid="' + escAttr(u.user_id) + '">' +
       '<div class="user-header">' +
-        '<label class="user-check"><input type="checkbox" class="ck" data-uid="' + esc(u.user_id) + '" /></label>' +
+        '<label class="user-check"><input type="checkbox" class="ck" data-uid="' + escAttr(u.user_id) + '" /></label>' +
         '<div class="user-info"><span class="user-name">' + esc(u.user_name) + '</span><span class="user-uid">' + esc(u.user_id) + '</span></div>' +
         '<div class="user-meta"><span class="user-group">' + esc(groupStr) + '</span><span class="user-count">' + u.count + '次</span><span class="user-time">' + fmtTime(latest.ts) + '</span><span class="expand-icon">&#9654;</span></div>' +
       '</div>' +
@@ -1451,9 +1534,9 @@ function renderUsers(users) {
           var mid = 'uf' + (_msgIdx++);
           _msgStore[mid] = { text: msgFull, imgs: imgUrls };
           var msgCell = (r.msg_preview && r.msg_preview.length > 20) ?
-            '<td><span class="lin-msg-truncated">' + esc(r.msg_preview.slice(0, 20)) + '</span> <a href="javascript:void(0)" class="lin-msg-action" data-log-id="' + esc(String(r.id)) + '"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span class="lin-msg-action-text">查看</span></a></td>' :
+            '<td><span class="lin-msg-truncated">' + esc(r.msg_preview.slice(0, 20)) + '</span> <a href="javascript:void(0)" class="lin-msg-action" data-log-id="' + escAttr(String(r.id)) + '"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span class="lin-msg-action-text">查看</span></a></td>' :
             '<td>' + esc(r.msg_preview || '') + '</td>';
-          return '<tr><td>' + fmtTime(r.ts) + '</td><td>' + esc(r.group_id) + '</td>' + msgCell + '<td>' + esc((r.reason || '').slice(0, 20)) + '</td><td><button class="btn btn-danger btn-sm" data-del="' + esc(r.id) + '">删除</button></td></tr>';
+          return '<tr><td>' + fmtTime(r.ts) + '</td><td>' + esc(r.group_id) + '</td>' + msgCell + '<td>' + esc((r.reason || '').slice(0, 20)) + '</td><td><button class="btn btn-danger btn-sm" data-del="' + escAttr(r.id) + '">删除</button></td></tr>';
         }).join('') + '</tbody></table></div></div>';
   }).join('');
 
@@ -1469,9 +1552,8 @@ function renderUsers(users) {
 
   $$('[data-del]', c).forEach(function(btn) {
     btn.addEventListener('click', async function() {
-      await safePost('logs/delete', { ids: [btn.dataset.del] });
-      toast('已删除', 'success');
-      loadUsers();
+      var ok = await postOrToast('logs/delete', { ids: [btn.dataset.del] }, '已删除', '删除记录失败');
+      if (ok) loadUsers();
     });
   });
 
@@ -1483,7 +1565,7 @@ function renderUsers(users) {
       $('#btnMsgClose2').addEventListener('click', closeModal);
       try {
         var detail = await safeGet('log_detail', { id: lid });
-        if (detail && detail.status === 'error') { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
+        if (isApiError(detail)) { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
         var d = detail || {};
         var chunkCount = d.chunk_count || 0;
         var imgUrls = d.image_urls || [];
@@ -1502,7 +1584,7 @@ async function loadLogs() {
   var c = $('#logContainer');
   c.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('logs');
-  if (res && res.status === 'error') { c.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  if (isApiError(res)) { c.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   var logs = res || [];
   if (!logs.length) { c.innerHTML = '<p class="empty">暂无日志</p>'; return; }
   var _msgStore = {};
@@ -1515,9 +1597,9 @@ async function loadLogs() {
     var mid = 'mf' + (_msgIdx++);
     _msgStore[mid] = { text: msgFull, imgs: imgUrls };
     var msgHtml = (l.msg_preview && l.msg_preview.length > 28) ?
-      '<span class="lin-msg-truncated">' + esc(l.msg_preview.slice(0, 28)) + '</span><a href="javascript:void(0)" class="lin-msg-action" data-log-id="' + esc(String(l.id)) + '"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span class="lin-msg-action-text">查看</span></a>' :
+      '<span class="lin-msg-truncated">' + esc(l.msg_preview.slice(0, 28)) + '</span><a href="javascript:void(0)" class="lin-msg-action" data-log-id="' + escAttr(String(l.id)) + '"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span class="lin-msg-action-text">查看</span></a>' :
       esc(l.msg_preview || '');
-    return '<tr><td>' + fmtTime(l.ts) + '</td><td>' + esc(l.group_id) + '</td><td>' + esc(l.user_name) + '<br><span style="font-size:10px;color:var(--text-muted)">' + esc(l.user_id) + '</span></td><td>' + msgHtml + '</td><td><span class="badge ' + cls + '">' + esc(a) + '</span></td><td class="reason-cell" title="' + esc(l.reason) + '">' + esc((l.reason || '').slice(0, 30)) + '</td></tr>';
+    return '<tr><td>' + fmtTime(l.ts) + '</td><td>' + esc(l.group_id) + '</td><td>' + esc(l.user_name) + '<br><span style="font-size:10px;color:var(--text-muted)">' + esc(l.user_id) + '</span></td><td>' + msgHtml + '</td><td><span class="badge ' + cls + '">' + esc(a) + '</span></td><td class="reason-cell" title="' + escAttr(l.reason) + '">' + esc((l.reason || '').slice(0, 30)) + '</td></tr>';
   }).join('');
   c.innerHTML = '<table class="log-table"><thead><tr><th>时间</th><th>群号</th><th>用户</th><th>消息</th><th>操作</th><th>原因</th></tr></thead><tbody>' + rows + '</tbody></table>';
   c.querySelectorAll('.lin-msg-action').forEach(function(action) {
@@ -1528,7 +1610,7 @@ async function loadLogs() {
       $('#btnMsgClose').addEventListener('click', closeModal);
       try {
         var detail = await safeGet('log_detail', { id: lid });
-        if (detail && detail.status === 'error') { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
+        if (isApiError(detail)) { $('#modalBody').innerHTML = '<p style="color:var(--text-muted)">' + esc(detail.message || '获取失败') + '</p>'; return; }
         var d = detail || {};
         var chunkCount = d.chunk_count || 0;
         var imgUrls = d.image_urls || [];
@@ -1563,6 +1645,7 @@ var AUDIT_TOGGLES = [
 ];
 var OCR_TOGGLES = [
   { key: 'ocr_enabled', label: 'OCR识图审核', desc: '使用LLM视觉模型识别图片内容进行审核' },
+  { key: 'scan_sticker_enabled', label: '表情包审核', desc: '识别商城表情/表情包图片内容' },
 ];
 var LEXICON_TOGGLES = [
   { key: 'lexicon_political_enabled', label: '政治敏感' },
@@ -1598,12 +1681,20 @@ var FEATURE_TOGGLES = [
   { key: 'group_msg_history_enabled', label: '群消息历史' },
   { key: 'group_portrait_enabled', label: '群头像设置' },
   { key: 'group_sign_enabled', label: '群打卡' },
+  { key: 'word_count_enabled', label: '字数统计' },
+  { key: 'group_stats_enabled', label: '群统计' },
+  { key: 'join_audit_enabled', label: '入群自动审核' },
+  { key: 'join_reject_use_lexicon', label: '入群词库过滤' },
+  { key: 'appeal_enabled', label: '刷屏申诉模式' },
+  { key: 'auto_unban_enabled', label: '定时自动解禁' },
+  { key: 'group_admin_grant_enabled', label: '群管理员动态授权' },
+  { key: 'legacy_role_admin_enabled', label: '兼容群管授权' },
 ];
 var RULES_STATE = { category: 'swear', q: '', enabled: '', page: 1, pageSize: 20 };
 var KEYWORDS_STATE = { category: '', q: '', page: 1, pageSize: 50 };
 
 function renderSegmented(name, value, items) {
-  return '<div data-seg-name="' + name + '" style="display:inline-flex;gap:6px;flex-wrap:wrap">'
+  return '<div data-seg-name="' + escAttr(name) + '" style="display:inline-flex;gap:6px;flex-wrap:wrap">'
     + items.map(function(it) {
       var active = String(it.value) === String(value);
       return '<button type="button" class="btn btn-sm ' + (active ? 'btn-primary' : 'btn-ghost') + '" data-seg-value="' + escAttr(String(it.value)) + '">' + esc(it.label) + '</button>';
@@ -1632,13 +1723,14 @@ function bindSegmented(root, currentValue, onChange) {
 
 function renderPager(page, pageSize, total, prefix) {
   var totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
+  var prefixAttr = escAttr(prefix);
   return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;font-size:12px;color:var(--text-muted)">'
     + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>第 ' + page + ' / ' + totalPages + ' 页，共 ' + total + ' 条</span>'
-    + '<label>每页 <select class="input-sm" data-page-size="' + prefix + '" style="width:88px"><option value="20"' + (pageSize === 20 ? ' selected' : '') + '>20</option><option value="50"' + (pageSize === 50 ? ' selected' : '') + '>50</option><option value="100"' + (pageSize === 100 ? ' selected' : '') + '>100</option></select></label>'
-    + '<label>跳至 <input class="input-sm" data-page-jump="' + prefix + '" style="width:64px" value="' + page + '" /></label></div>'
+    + '<label>每页 <select class="input-sm" data-page-size="' + prefixAttr + '" style="width:88px"><option value="20"' + (pageSize === 20 ? ' selected' : '') + '>20</option><option value="50"' + (pageSize === 50 ? ' selected' : '') + '>50</option><option value="100"' + (pageSize === 100 ? ' selected' : '') + '>100</option></select></label>'
+    + '<label>跳至 <input class="input-sm" data-page-jump="' + prefixAttr + '" style="width:64px" value="' + escAttr(page) + '" /></label></div>'
     + '<div style="display:flex;gap:8px">'
-    + '<button class="btn btn-ghost btn-sm" data-page-act="prev" data-page-prefix="' + prefix + '" ' + (page <= 1 ? 'disabled' : '') + '>上一页</button>'
-    + '<button class="btn btn-ghost btn-sm" data-page-act="next" data-page-prefix="' + prefix + '" ' + (page >= totalPages ? 'disabled' : '') + '>下一页</button>'
+    + '<button class="btn btn-ghost btn-sm" data-page-act="prev" data-page-prefix="' + prefixAttr + '" ' + (page <= 1 ? 'disabled' : '') + '>上一页</button>'
+    + '<button class="btn btn-ghost btn-sm" data-page-act="next" data-page-prefix="' + prefixAttr + '" ' + (page >= totalPages ? 'disabled' : '') + '>下一页</button>'
     + '</div></div>';
 }
 
@@ -1658,6 +1750,7 @@ var MANUAL_SETTING_KEYS = {
   repeat_detect_enabled: true,
   long_text_detect_enabled: true,
   ocr_enabled: true,
+  scan_sticker_enabled: true,
   lexicon_political_enabled: true,
   lexicon_porn_enabled: true,
   lexicon_violent_enabled: true,
@@ -1689,6 +1782,14 @@ var MANUAL_SETTING_KEYS = {
   group_msg_history_enabled: true,
   group_portrait_enabled: true,
   group_sign_enabled: true,
+  word_count_enabled: true,
+  group_stats_enabled: true,
+  join_audit_enabled: true,
+  join_reject_use_lexicon: true,
+  appeal_enabled: true,
+  auto_unban_enabled: true,
+  group_admin_grant_enabled: true,
+  legacy_role_admin_enabled: true,
   moderation_ban_duration: true,
   moderation_llm_provider_id: true,
   ban_notice: true,
@@ -1700,6 +1801,13 @@ var MANUAL_SETTING_KEYS = {
   repeat_detect_window_seconds: true,
   repeat_detect_count: true,
   long_text_threshold: true,
+  join_default_action: true,
+  join_reject_reason: true,
+  appeal_window_minutes: true,
+  appeal_context_count: true,
+  appeal_at_template: true,
+  auto_unban_scan_interval: true,
+  auto_unban_permanent_hours: true,
   ocr_provider_id: true,
   ocr_prompt_template: true,
   ocr_custom_system_prompt: true,
@@ -1722,9 +1830,8 @@ function updateLinDisclaimerStatus(agreed) {
 }
 
 async function loadSettings() {
-  var res = await safeGet('config');
-  if (res && res.status === 'error') { toast('加载设置失败', 'error'); return; }
-  CONFIG = Object.assign({}, CONFIG, res);
+  var res = await loadConfigCached(true);
+  if (isApiError(res)) { toast('加载设置失败', 'error'); return; }
   var agreed = CONFIG.disclaimer_agreed ? true : false;
   var cb = $('#disclaimerAgreed');
   if (cb) cb.checked = agreed;
@@ -1760,7 +1867,7 @@ function renderSettingsSectionTabs() {
   ];
   tabs.innerHTML = items.map(function(it) {
     var active = SETTINGS_SECTION === it.key;
-    return '<button type="button" class="btn btn-sm btn-tab ' + (active ? 'active' : '') + '" data-settings-tab="' + it.key + '">' + esc(it.label) + '</button>';
+    return '<button type="button" class="btn btn-sm btn-tab ' + (active ? 'active' : '') + '" data-settings-tab="' + escAttr(it.key) + '">' + esc(it.label) + '</button>';
   }).join('');
   $$('[data-settings-tab]', tabs).forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -1814,46 +1921,52 @@ function renderRuleCenterShell() {
     + '  </div>'
     + '</div>';
 
-  $('#rulesCategorySeg').innerHTML = renderSegmented('ruleCategory', RULES_STATE.category, [
+  var rulesCategorySeg = $('#rulesCategorySeg');
+  var rulesEnabledSeg = $('#rulesEnabledSeg');
+  var rulesQuery = $('#rulesQuery');
+  var kwQuery = $('#kwQuery');
+  if (!rulesCategorySeg || !rulesEnabledSeg || !rulesQuery || !kwQuery) return;
+
+  rulesCategorySeg.innerHTML = renderSegmented('ruleCategory', RULES_STATE.category, [
     { value: 'swear', label: '脏话规则' },
     { value: 'ad', label: '广告规则' },
   ]);
-  $('#rulesEnabledSeg').innerHTML = renderSegmented('ruleEnabled', RULES_STATE.enabled, [
+  rulesEnabledSeg.innerHTML = renderSegmented('ruleEnabled', RULES_STATE.enabled, [
     { value: '', label: '全部状态' },
     { value: '1', label: '已启用' },
     { value: '0', label: '已禁用' },
   ]);
-  bindSegmented($('#rulesCategorySeg'), RULES_STATE.category, function(v) {
+  bindSegmented(rulesCategorySeg, RULES_STATE.category, function(v) {
     RULES_STATE.category = v;
     RULES_STATE.page = 1;
     loadRules();
   });
-  bindSegmented($('#rulesEnabledSeg'), RULES_STATE.enabled, function(v) {
+  bindSegmented(rulesEnabledSeg, RULES_STATE.enabled, function(v) {
     RULES_STATE.enabled = v;
     RULES_STATE.page = 1;
     loadRules();
   });
 
-  $('#rulesQuery').value = RULES_STATE.q || '';
-  $('#kwQuery').value = KEYWORDS_STATE.q || '';
+  rulesQuery.value = RULES_STATE.q || '';
+  kwQuery.value = KEYWORDS_STATE.q || '';
 
-  $('#btnRulesSearch').addEventListener('click', function() {
-    RULES_STATE.q = $('#rulesQuery').value.trim();
+  bindIfExists('btnRulesSearch', function() {
+    RULES_STATE.q = rulesQuery.value.trim();
     RULES_STATE.page = 1;
     loadRules();
   });
-  $('#btnRuleAdd').addEventListener('click', function() { openRuleEditor(); });
-  $('#btnKwSearch').addEventListener('click', function() {
+  bindIfExists('btnRuleAdd', function() { openRuleEditor(); });
+  bindIfExists('btnKwSearch', function() {
     var kwCategoryInput = $('#kwCategorySearch');
     KEYWORDS_STATE.category = kwCategoryInput ? kwCategoryInput.value.trim() : KEYWORDS_STATE.category;
-    KEYWORDS_STATE.q = $('#kwQuery').value.trim();
+    KEYWORDS_STATE.q = kwQuery.value.trim();
     KEYWORDS_STATE.page = 1;
     loadKeywords();
   });
-  $('#btnKwAdd').addEventListener('click', addKeyword);
-  $('#btnKwBatchAdd').addEventListener('click', openBatchAddKeywords);
-  $('#btnKwExport').addEventListener('click', exportKeywords);
-  $('#btnKwBatchDelete').addEventListener('click', deleteSelectedKeywords);
+  bindIfExists('btnKwAdd', addKeyword);
+  bindIfExists('btnKwBatchAdd', openBatchAddKeywords);
+  bindIfExists('btnKwExport', exportKeywords);
+  bindIfExists('btnKwBatchDelete', deleteSelectedKeywords);
 }
 
 async function loadRuleCenter() {
@@ -1862,7 +1975,7 @@ async function loadRuleCenter() {
 
 async function loadRebuildStatus() {
   var res = await safeGet('rules/rebuild_status');
-  if (!res || res.status === 'error') return;
+  if (!res || isApiError(res)) return;
   var d = res;
   var txt = '重建状态：' + (d.message || d.state || '--');
   if (d.target) txt += ' [' + d.target + ']';
@@ -1885,20 +1998,20 @@ async function loadRules() {
   });
   var wrap = $('#rulesTableWrap');
   if (!wrap) return;
-  if (!res || res.status === 'error') { wrap.innerHTML = '<div class="empty">规则加载失败</div>'; return; }
+  if (!res || isApiError(res)) { wrap.innerHTML = '<div class="empty">规则加载失败</div>'; return; }
   var items = res.items || [];
   var total = res.total || 0;
   var rows = items.map(function(item) {
     return '<tr>'
-      + '<td><input type="checkbox" data-rule-id="' + item.id + '" /></td>'
+      + '<td><input type="checkbox" data-rule-id="' + escAttr(item.id) + '" /></td>'
       + '<td style="white-space:nowrap">' + esc(item.category) + '</td>'
       + '<td style="word-break:break-all">' + esc(item.pattern) + '</td>'
       + '<td>' + esc(item.description || '-') + '</td>'
       + '<td>' + (item.enabled ? '启用' : '禁用') + '</td>'
       + '<td style="white-space:nowrap">'
-      + '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '" data-pattern="' + escAttr(item.pattern) + '" data-description="' + escAttr(item.description || '') + '" data-enabled="' + (item.enabled ? '1' : '0') + '">编辑</button> '
-      + '<button class="btn btn-ghost btn-sm" data-act="toggle" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '" data-enabled="' + (item.enabled ? '0' : '1') + '">' + (item.enabled ? '禁用' : '启用') + '</button> '
-      + '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + item.id + '" data-category="' + escAttr(item.category) + '">删除</button>'
+      + '<button class="btn btn-ghost btn-sm" data-act="edit" data-id="' + escAttr(item.id) + '" data-category="' + escAttr(item.category) + '" data-pattern="' + escAttr(item.pattern) + '" data-description="' + escAttr(item.description || '') + '" data-enabled="' + (item.enabled ? '1' : '0') + '">编辑</button> '
+      + '<button class="btn btn-ghost btn-sm" data-act="toggle" data-id="' + escAttr(item.id) + '" data-category="' + escAttr(item.category) + '" data-enabled="' + (item.enabled ? '0' : '1') + '">' + (item.enabled ? '禁用' : '启用') + '</button> '
+      + '<button class="btn btn-danger btn-sm" data-act="delete" data-id="' + escAttr(item.id) + '" data-category="' + escAttr(item.category) + '">删除</button>'
       + '</td>'
       + '</tr>';
   }).join('');
@@ -1928,13 +2041,13 @@ async function loadRules() {
       }
       if (act === 'toggle') {
         var r = await safePost('rules/toggle', { id: parseInt(btn.getAttribute('data-id'), 10) || 0, category: btn.getAttribute('data-category'), enabled: btn.getAttribute('data-enabled') === '1' });
-        if (r && r.status !== 'error') { toast('规则状态已更新', 'success'); loadRules(); loadRebuildStatus(); }
+        if (!isApiError(r)) { toast('规则状态已更新', 'success'); loadRules(); loadRebuildStatus(); }
         else toast('规则状态更新失败', 'error');
         return;
       }
       if (act === 'delete') {
         var r2 = await safePost('rules/delete', { id: parseInt(btn.getAttribute('data-id'), 10) || 0, category: btn.getAttribute('data-category') });
-        if (r2 && r2.status !== 'error') { toast('规则已删除', 'success'); loadRules(); loadRebuildStatus(); }
+        if (!isApiError(r2)) { toast('规则已删除', 'success'); loadRules(); loadRebuildStatus(); }
         else toast('规则删除失败', 'error');
       }
     });
@@ -1960,7 +2073,7 @@ async function batchToggleRules(enabled) {
   var ids = selectedRuleIds();
   if (!ids.length) { toast('请先选择规则', 'info'); return; }
   var res = await safePost('rules/toggle_batch', { ids: ids, category: RULES_STATE.category, enabled: enabled });
-  if (!res || res.status === 'error') { toast('批量更新失败: ' + ((res && res.message) || ''), 'error'); return; }
+  if (!res || isApiError(res)) { toast('批量更新失败: ' + ((res && res.message) || ''), 'error'); return; }
   toast(enabled ? '已批量启用' : '已批量禁用', 'success');
   loadRules();
   loadRebuildStatus();
@@ -1970,7 +2083,7 @@ async function deleteSelectedRules() {
   var ids = selectedRuleIds();
   if (!ids.length) { toast('请先选择规则', 'info'); return; }
   var res = await safePost('rules/delete_batch', { ids: ids, category: RULES_STATE.category });
-  if (!res || res.status === 'error') { toast('批量删除失败: ' + ((res && res.message) || ''), 'error'); return; }
+  if (!res || isApiError(res)) { toast('批量删除失败: ' + ((res && res.message) || ''), 'error'); return; }
   toast('已批量删除规则', 'success');
   loadRules();
   loadRebuildStatus();
@@ -1998,7 +2111,7 @@ function openRuleEditor(rule) {
       enabled: $('#ruleEditEnabled').checked,
     };
     var res = await safePost('rules/save', payload);
-    if (!res || res.status === 'error') { toast('规则保存失败: ' + ((res && res.message) || ''), 'error'); return; }
+    if (!res || isApiError(res)) { toast('规则保存失败: ' + ((res && res.message) || ''), 'error'); return; }
     closeModal();
     toast('规则已保存', 'success');
     loadRules();
@@ -2012,7 +2125,7 @@ async function loadKeywordCategories() {
   var datalist = $('#kwCategoryList');
   var meta = $('#kwCategoryMeta');
   if (!input || !datalist) return;
-  if (!res || res.status === 'error') {
+  if (!res || isApiError(res)) {
     datalist.innerHTML = '';
     input.value = '';
     if (meta) meta.textContent = '分类加载失败';
@@ -2050,13 +2163,13 @@ async function loadKeywords() {
     page: KEYWORDS_STATE.page,
     page_size: KEYWORDS_STATE.pageSize,
   });
-  if (!res || res.status === 'error') { wrap.innerHTML = '<div class="empty">关键词加载失败</div>'; return; }
+  if (!res || isApiError(res)) { wrap.innerHTML = '<div class="empty">关键词加载失败</div>'; return; }
   var items = res.items || [];
   var total = res.total || 0;
   wrap.innerHTML = '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">分类 ' + esc(KEYWORDS_STATE.category) + '，共 ' + total + ' 个关键词</div>'
     + '<table class="log-table"><thead><tr><th><input type="checkbox" id="kwCheckAll" /></th><th>ID</th><th>关键词</th><th>操作</th></tr></thead><tbody>'
     + (items.map(function(item) {
-        return '<tr><td><input type="checkbox" data-kw-id="' + item.id + '" /></td><td>' + item.id + '</td><td style="word-break:break-all">' + esc(item.keyword) + '</td><td><button class="btn btn-ghost btn-sm" data-kw-edit="' + item.id + '" data-kw-value="' + escAttr(item.keyword) + '">编辑</button> <button class="btn btn-danger btn-sm" data-kw-del="' + item.id + '">删除</button></td></tr>';
+        return '<tr><td><input type="checkbox" data-kw-id="' + escAttr(item.id) + '" /></td><td>' + esc(item.id) + '</td><td style="word-break:break-all">' + esc(item.keyword) + '</td><td><button class="btn btn-ghost btn-sm" data-kw-edit="' + escAttr(item.id) + '" data-kw-value="' + escAttr(item.keyword) + '">编辑</button> <button class="btn btn-danger btn-sm" data-kw-del="' + escAttr(item.id) + '">删除</button></td></tr>';
       }).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">暂无关键词</td></tr>')
     + '</tbody></table>'
     + renderPager(KEYWORDS_STATE.page, KEYWORDS_STATE.pageSize, total, 'keywords');
@@ -2069,7 +2182,7 @@ async function loadKeywords() {
   $$('[data-kw-del]', wrap).forEach(function(btn) {
     btn.addEventListener('click', async function() {
       var res2 = await safePost('lexicon/keywords/delete', { id: parseInt(btn.getAttribute('data-kw-del'), 10) || 0, category: KEYWORDS_STATE.category });
-      if (!res2 || res2.status === 'error') { toast('删除关键词失败', 'error'); return; }
+      if (!res2 || isApiError(res2)) { toast('删除关键词失败', 'error'); return; }
       toast('关键词已删除', 'success');
       loadKeywordCategories();
       loadRebuildStatus();
@@ -2091,7 +2204,7 @@ async function deleteSelectedKeywords() {
   var ids = selectedKeywordIds();
   if (!ids.length) { toast('请先选择关键词', 'info'); return; }
   var res = await safePost('lexicon/keywords/delete_batch', { ids: ids, category: KEYWORDS_STATE.category });
-  if (!res || res.status === 'error') { toast('批量删除失败: ' + ((res && res.message) || ''), 'error'); return; }
+  if (!res || isApiError(res)) { toast('批量删除失败: ' + ((res && res.message) || ''), 'error'); return; }
   toast('已批量删除关键词', 'success');
   loadKeywordCategories();
   loadRebuildStatus();
@@ -2108,7 +2221,7 @@ function openKeywordEditor(id, value) {
     var keyword = ($('#kwEditValue').value || '').trim();
     if (!keyword) return;
     var res = await safePost('lexicon/keywords/update', { id: id, category: KEYWORDS_STATE.category, keyword: keyword });
-    if (!res || res.status === 'error') { toast('保存失败: ' + ((res && res.message) || ''), 'error'); return; }
+    if (!res || isApiError(res)) { toast('保存失败: ' + ((res && res.message) || ''), 'error'); return; }
     closeModal();
     toast('关键词已更新', 'success');
     loadKeywords();
@@ -2127,7 +2240,7 @@ function openBatchAddKeywords() {
     var keywords = ($('#kwBatchValue').value || '').trim();
     if (!keywords) return;
     var res = await safePost('lexicon/keywords/add_batch', { category: KEYWORDS_STATE.category, keywords: keywords });
-    if (!res || res.status === 'error') { toast('批量新增失败: ' + ((res && res.message) || ''), 'error'); return; }
+    if (!res || isApiError(res)) { toast('批量新增失败: ' + ((res && res.message) || ''), 'error'); return; }
     closeModal();
     var msg = '新增 ' + (res.added || 0) + '，重复 ' + (res.duplicate_total || 0);
     if (Array.isArray(res.duplicate_samples) && res.duplicate_samples.length) {
@@ -2196,7 +2309,7 @@ async function addKeyword() {
   var keyword = inp.value.trim();
   if (!keyword) return;
   var res = await safePost('lexicon/keywords/add', { category: KEYWORDS_STATE.category, keyword: keyword });
-  if (!res || res.status === 'error') { toast('新增关键词失败: ' + ((res && res.message) || ''), 'error'); return; }
+  if (!res || isApiError(res)) { toast('新增关键词失败: ' + ((res && res.message) || ''), 'error'); return; }
   inp.value = '';
   toast('关键词已新增', 'success');
   loadKeywordCategories();
@@ -2217,36 +2330,38 @@ function renderAllSettings() {
     var desc = def.description || key;
     var hint = def.hint || '';
     var searchText = (key + ' ' + desc + ' ' + hint).toLowerCase();
+    var keyAttr = escAttr(key);
+    var searchAttr = escAttr(searchText);
     if (t === 'bool') {
-      rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><label class="toggle"><input type="checkbox" data-all-key="' + key + '" data-all-type="bool" ' + (val ? 'checked' : '') + ' /><span class="slider"></span></label></div>');
+      rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><label class="toggle"><input type="checkbox" data-all-key="' + keyAttr + '" data-all-type="bool" ' + (val ? 'checked' : '') + ' /><span class="slider"></span></label></div>');
       return;
     }
     if (t === 'int') {
-      rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><input type="number" class="input-sm" data-all-key="' + key + '" data-all-type="int" value="' + esc(String(val != null ? val : 0)) + '" style="width:140px" /></div>');
+      rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><input type="number" class="input-sm" data-all-key="' + keyAttr + '" data-all-type="int" value="' + escAttr(String(val != null ? val : 0)) + '" style="width:140px" /></div>');
       return;
     }
     if (t === 'list') {
       var listVal = Array.isArray(val) ? val.join(',') : (val == null ? '' : String(val));
-      rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '<div class="setting-desc">多个值请用英文逗号分隔</div>') + '</div><input type="text" class="input-sm" data-all-key="' + key + '" data-all-type="list" value="' + esc(listVal) + '" style="width:320px" /></div>');
+      rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '<div class="setting-desc">多个值请用英文逗号分隔</div>') + '</div><input type="text" class="input-sm" data-all-key="' + keyAttr + '" data-all-type="list" value="' + escAttr(listVal) + '" style="width:320px" /></div>');
       return;
     }
     if (t === 'string' || t === 'text') {
       if (Array.isArray(def.options) && def.options.length && t === 'string') {
         var opts = def.options.map(function(o) {
           var selected = String(o) === String(val) ? ' selected' : '';
-          return '<option value="' + esc(String(o)) + '"' + selected + '>' + esc(String(o)) + '</option>';
+          return '<option value="' + escAttr(String(o)) + '"' + selected + '>' + esc(String(o)) + '</option>';
         }).join('');
-        rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><select class="input-sm" data-all-key="' + key + '" data-all-type="string" style="width:260px">' + opts + '</select></div>');
+        rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><select class="input-sm" data-all-key="' + keyAttr + '" data-all-type="string" style="width:260px">' + opts + '</select></div>');
         return;
       }
       if (t === 'text') {
-        rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><textarea class="input-md" data-all-key="' + key + '" data-all-type="text" rows="2" style="width:100%;max-width:420px">' + esc(String(val != null ? val : '')) + '</textarea></div>');
+        rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><textarea class="input-md" data-all-key="' + keyAttr + '" data-all-type="text" rows="2" style="width:100%;max-width:420px">' + esc(String(val != null ? val : '')) + '</textarea></div>');
       } else {
-        rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><input type="text" class="input-sm" data-all-key="' + key + '" data-all-type="string" value="' + esc(String(val != null ? val : '')) + '" style="width:260px" /></div>');
+        rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div>' + (hint ? '<div class="setting-desc">' + esc(hint) + '</div>' : '') + '</div><input type="text" class="input-sm" data-all-key="' + keyAttr + '" data-all-type="string" value="' + escAttr(String(val != null ? val : '')) + '" style="width:260px" /></div>');
       }
       return;
     }
-    rows.push('<div class="setting-item" data-search="' + esc(searchText) + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div><div class="setting-desc">类型 ' + esc(t || 'unknown') + ' 暂不支持直接编辑，请使用 AstrBot 原生插件配置页。</div></div></div>');
+    rows.push('<div class="setting-item" data-search="' + searchAttr + '"><div class="setting-info"><div class="setting-label">' + esc(desc) + ' <span style="font-size:11px;color:var(--text-muted)">(' + esc(key) + ')</span></div><div class="setting-desc">类型 ' + esc(t || 'unknown') + ' 暂不支持直接编辑，请使用 AstrBot 原生插件配置页。</div></div></div>');
   });
   c.innerHTML = rows.length ? rows.join('') : '<div style="padding:8px 0;color:var(--text-muted);font-size:12px">所有配置项均已在上方分组展示。</div>';
   var search = $('#allSettingsSearch');
@@ -2275,7 +2390,7 @@ async function loadMigrationStatus(showToast) {
     btn.disabled = false;
     btn.textContent = '刷新状态';
   }
-  if (!res || res.status === 'error') {
+  if (!res || isApiError(res)) {
     box.textContent = '迁移状态读取失败：' + ((res && res.message) || '未知错误');
     if (showToast) toast('迁移状态读取失败', 'error');
     return;
@@ -2302,7 +2417,7 @@ async function runMigration() {
     closeModal();
     toast('正在执行迁移...', 'info');
     var res = await safePost('migration/run', { confirm: 'migrate_logs' });
-    if (res && res.status === 'error') {
+    if (isApiError(res)) {
       toast('迁移失败：' + (res.message || ''), 'error');
       return;
     }
@@ -2317,7 +2432,7 @@ function renderToggles(containerId, items) {
   var c = $('#' + containerId);
   c.innerHTML = items.map(function(item) {
     var checked = CONFIG[item.key] ? 'checked' : '';
-    return '<div class="setting-item"><div class="setting-info"><div class="setting-label">' + esc(item.label) + '</div>' + (item.desc ? '<div class="setting-desc">' + esc(item.desc) + '</div>' : '') + '</div><label class="toggle"><input type="checkbox" data-key="' + item.key + '" ' + checked + ' /><span class="slider"></span></label></div>';
+    return '<div class="setting-item"><div class="setting-info"><div class="setting-label">' + esc(item.label) + '</div>' + (item.desc ? '<div class="setting-desc">' + esc(item.desc) + '</div>' : '') + '</div><label class="toggle"><input type="checkbox" data-key="' + escAttr(item.key) + '" ' + checked + ' /><span class="slider"></span></label></div>';
   }).join('');
 }
 
@@ -2334,45 +2449,45 @@ function renderListSettings() {
     '<div class="list-section"><h3>用户黑名单</h3><div class="list-add-row"><input type="text" class="input-sm" id="addUserInput" placeholder="QQ号(可多个,逗号/空格分隔)..." /><button class="btn btn-warning btn-sm" id="btnAddUser" style="background:var(--warning);color:#fff">添加</button></div><div class="list-items" id="userItems">' + renderListTags(users, 'user') + '</div></div>' +
     '<div class="list-section"><h3>审核白名单用户</h3><div class="list-add-row"><input type="text" class="input-sm" id="addUserWhiteInput" placeholder="QQ号(可多个,逗号/空格分隔)..." /><button class="btn btn-primary btn-sm" id="btnAddUserWhite">添加</button></div><div class="setting-desc" style="margin-bottom:8px">白名单用户将跳过自动审核与防刷屏，优先级高于用户黑名单</div><div class="list-items" id="userWhiteItems">' + renderListTags(userWhites, 'userwhite') + '</div></div>';
 
-  $('#btnAddWhite').addEventListener('click', async function() {
-    var vals = ($('#addWhiteInput').value || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
-    for (var i = 0; i < vals.length; i++) await safePost('whitelist/add', { group_id: vals[i] });
-    $('#addWhiteInput').value = '';
-    toast('已添加 ' + vals.length + ' 个到白名单', 'success');
-    loadSettings();
+  bindIfExists('btnAddWhite', async function() {
+    var input = $('#addWhiteInput');
+    var vals = ((input && input.value) || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
+    var ok = await postManyOrToast(vals, 'whitelist/add', 'group_id', '已添加到白名单', '添加白名单失败');
+    if (input) input.value = '';
+    if (ok) loadSettings();
   });
-  $('#btnAddBlack').addEventListener('click', async function() {
-    var vals = ($('#addBlackInput').value || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
-    for (var i = 0; i < vals.length; i++) await safePost('blacklist/add', { group_id: vals[i] });
-    $('#addBlackInput').value = '';
-    toast('已添加 ' + vals.length + ' 个到黑名单', 'danger');
-    loadSettings();
+  bindIfExists('btnAddBlack', async function() {
+    var input = $('#addBlackInput');
+    var vals = ((input && input.value) || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
+    var ok = await postManyOrToast(vals, 'blacklist/add', 'group_id', '已添加到黑名单', '添加黑名单失败', 'danger');
+    if (input) input.value = '';
+    if (ok) loadSettings();
   });
-  $('#btnAddUser').addEventListener('click', async function() {
-    var vals = ($('#addUserInput').value || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
-    for (var i = 0; i < vals.length; i++) await safePost('user_blacklist/add', { user_id: vals[i] });
-    $('#addUserInput').value = '';
-    toast('已添加 ' + vals.length + ' 个到用户黑名单', 'warning');
-    loadSettings();
+  bindIfExists('btnAddUser', async function() {
+    var input = $('#addUserInput');
+    var vals = ((input && input.value) || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
+    var ok = await postManyOrToast(vals, 'user_blacklist/add', 'user_id', '已添加到用户黑名单', '添加用户黑名单失败', 'warning');
+    if (input) input.value = '';
+    if (ok) loadSettings();
   });
-  $('#btnAddUserWhite').addEventListener('click', async function() {
-    var vals = ($('#addUserWhiteInput').value || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
-    for (var i = 0; i < vals.length; i++) await safePost('user_whitelist/add', { user_id: vals[i] });
-    $('#addUserWhiteInput').value = '';
-    toast('已添加 ' + vals.length + ' 个到审核白名单', 'success');
-    loadSettings();
+  bindIfExists('btnAddUserWhite', async function() {
+    var input = $('#addUserWhiteInput');
+    var vals = ((input && input.value) || '').split(/[\s,，]+/).filter(Boolean); if (!vals.length) return;
+    var ok = await postManyOrToast(vals, 'user_whitelist/add', 'user_id', '已添加到审核白名单', '添加审核白名单失败');
+    if (input) input.value = '';
+    if (ok) loadSettings();
   });
 
   $$('.list-tag .btn-remove', c).forEach(function(btn) {
     btn.addEventListener('click', async function() {
       var type = btn.dataset.type;
       var val = btn.dataset.val;
-      if (type === 'white') await safePost('whitelist/remove', { group_id: val });
-      else if (type === 'black') await safePost('blacklist/remove', { group_id: val });
-      else if (type === 'user') await safePost('user_blacklist/remove', { user_id: val });
-      else if (type === 'userwhite') await safePost('user_whitelist/remove', { user_id: val });
-      toast('已移除', 'success');
-      loadSettings();
+      var ok = true;
+      if (type === 'white') ok = await postOrToast('whitelist/remove', { group_id: val }, '已移除', '移除失败');
+      else if (type === 'black') ok = await postOrToast('blacklist/remove', { group_id: val }, '已移除', '移除失败');
+      else if (type === 'user') ok = await postOrToast('user_blacklist/remove', { user_id: val }, '已移除', '移除失败');
+      else if (type === 'userwhite') ok = await postOrToast('user_whitelist/remove', { user_id: val }, '已移除', '移除失败');
+      if (ok) loadSettings();
     });
   });
 }
@@ -2381,8 +2496,23 @@ function renderListTags(list, type) {
   var cls = type === 'white' ? 'list-tag-white' : (type === 'black' ? 'list-tag-black' : 'list-tag-user');
   if (!list.length) return '<span style="font-size:12px;color:var(--text-muted)">暂无</span>';
   return list.map(function(v) {
-    return '<span class="list-tag ' + cls + '">' + esc(String(v)) + '<button class="btn-remove" data-type="' + type + '" data-val="' + esc(String(v)) + '">&times;</button></span>';
+    return '<span class="list-tag ' + cls + '">' + esc(String(v)) + '<button class="btn-remove" data-type="' + escAttr(type) + '" data-val="' + escAttr(String(v)) + '">&times;</button></span>';
   }).join('');
+}
+
+async function postManyOrToast(vals, path, bodyKey, successLabel, errorLabel, successType) {
+  var ok = 0;
+  var fail = 0;
+  for (var i = 0; i < vals.length; i++) {
+    var body = {};
+    body[bodyKey] = vals[i];
+    var r = await safePost(path, body);
+    if (apiCallFailed(r)) fail++;
+    else ok++;
+  }
+  if (ok) toast(successLabel + ' ' + ok + ' 个' + (fail ? '，失败 ' + fail + ' 个' : ''), successType || 'success');
+  else toast(errorLabel || '操作失败', 'error');
+  return fail === 0;
 }
 
 function renderExtraSettings() {
@@ -2391,19 +2521,37 @@ function renderExtraSettings() {
   var banDuration = CONFIG.moderation_ban_duration != null ? CONFIG.moderation_ban_duration : 1800;
   var providerId = CONFIG.moderation_llm_provider_id || '';
   var banNotice = CONFIG.ban_notice || '[群管] {name}({uid}) 的消息已被撤回（违规内容）';
+  var joinAction = CONFIG.join_default_action || 'manual';
+  var joinRejectReason = CONFIG.join_reject_reason || '';
+  var appealWindow = CONFIG.appeal_window_minutes != null ? CONFIG.appeal_window_minutes : 10;
+  var appealContext = CONFIG.appeal_context_count != null ? CONFIG.appeal_context_count : 30;
+  var appealTemplate = CONFIG.appeal_at_template || '';
+  var unbanInterval = CONFIG.auto_unban_scan_interval != null ? CONFIG.auto_unban_scan_interval : 60;
+  var unbanPermanentHours = CONFIG.auto_unban_permanent_hours != null ? CONFIG.auto_unban_permanent_hours : 168;
 
   var providerOptions = '<option value="">留空使用默认</option>';
   PROVIDER_LIST.forEach(function(p) {
     var pid = p.id || p.provider_id || '';
     var pname = p.name || p.model || pid;
     var sel = pid === providerId ? ' selected' : '';
-    providerOptions += '<option value="' + esc(pid) + '"' + sel + '>' + esc(pname) + '</option>';
+    providerOptions += '<option value="' + escAttr(pid) + '"' + sel + '>' + esc(pname) + '</option>';
   });
 
   c.innerHTML =
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">禁言时长（秒）</div><div class="setting-desc">违规用户自动禁言时长，默认 1800 秒（30分钟）</div></div><input type="number" class="input-sm" id="inputBanDuration" value="' + banDuration + '" min="60" max="2592000" style="width:100px" /></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">审核 LLM 模型</div><div class="setting-desc">用于 AI 审核的 LLM 提供商（留空使用默认）</div></div><select class="input-sm" id="inputProviderId" style="width:220px">' + providerOptions + '</select></div>' +
-    '<div class="setting-item"><div class="setting-info"><div class="setting-label">封禁通知模板</div><div class="setting-desc">支持变量：{name} 用户名、{uid} QQ号、{group} 群号</div></div><input type="text" class="input-sm" id="inputBanNotice" value="' + esc(banNotice) + '" style="width:260px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">封禁通知模板</div><div class="setting-desc">支持变量：{name} 用户名、{uid} QQ号、{group} 群号</div></div><input type="text" class="input-sm" id="inputBanNotice" value="' + escAttr(banNotice) + '" style="width:260px" /></div>' +
+    '<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">' +
+    '<h3 style="font-size:13px;font-weight:600;margin-bottom:12px">入群审核设置</h3>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">入群默认动作</div><div class="setting-desc">未命中通过/拒绝关键词时的兜底动作</div></div><select class="input-sm" id="inputJoinAction" style="width:160px"><option value="manual"' + (joinAction === 'manual' ? ' selected' : '') + '>转人工</option><option value="accept"' + (joinAction === 'accept' ? ' selected' : '') + '>自动通过</option><option value="reject"' + (joinAction === 'reject' ? ' selected' : '') + '>自动拒绝</option></select></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">入群拒绝理由</div><div class="setting-desc">自动拒绝加群申请时回传给申请人的理由</div></div><input type="text" class="input-sm" id="inputJoinRejectReason" value="' + escAttr(joinRejectReason) + '" style="width:260px" /></div>' +
+    '<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">' +
+    '<h3 style="font-size:13px;font-weight:600;margin-bottom:12px">申诉 / 解禁设置</h3>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉窗口（分钟）</div><div class="setting-desc">刷屏处罚后允许用户私聊申诉的时间</div></div><input type="number" class="input-sm" id="inputAppealWindow" value="' + appealWindow + '" min="1" max="10080" style="width:100px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉上下文条数</div><div class="setting-desc">LLM 复核申诉时读取的最近群消息数量</div></div><input type="number" class="input-sm" id="inputAppealContext" value="' + appealContext + '" min="1" max="500" style="width:100px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉@公示模板</div><div class="setting-desc">支持变量：{name} 昵称、{minutes} 申诉窗口分钟数</div></div><textarea class="input-md" id="inputAppealTemplate" rows="2" style="width:100%;max-width:420px">' + esc(appealTemplate) + '</textarea></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">自动解禁扫描间隔（秒）</div><div class="setting-desc">后台任务扫描到期解禁计划的间隔</div></div><input type="number" class="input-sm" id="inputUnbanInterval" value="' + unbanInterval + '" min="10" max="3600" style="width:100px" /></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">永久禁言托管时长（小时）</div><div class="setting-desc">插件发起永久禁言时登记的兜底解禁时长</div></div><input type="number" class="input-sm" id="inputUnbanPermanentHours" value="' + unbanPermanentHours + '" min="1" max="8760" style="width:100px" /></div>' +
     '<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">' +
     '<h3 style="font-size:13px;font-weight:600;margin-bottom:12px">防刷屏设置</h3>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">每秒上限</div><div class="setting-desc">设 0 关闭每秒检测</div></div><input type="number" class="input-sm" id="inputFloodSec" value="' + (CONFIG.anti_flood_rate_per_second != null ? CONFIG.anti_flood_rate_per_second : 5) + '" min="0" max="99" style="width:80px" /></div>' +
@@ -2441,7 +2589,7 @@ function renderOcrSettings() {
     var pid = p.id || p.provider_id || '';
     var pname = p.name || p.model || pid;
     var sel = pid === ocrProviderId ? ' selected' : '';
-    providerOptions += '<option value="' + esc(pid) + '"' + sel + '>' + esc(pname) + '</option>';
+    providerOptions += '<option value="' + escAttr(pid) + '"' + sel + '>' + esc(pname) + '</option>';
   });
 
   var templateOptions = [
@@ -2450,7 +2598,7 @@ function renderOcrSettings() {
     { value: 'text_only', label: '纯文字转录 - 仅转录图片中的文字，不做分析' },
   ].map(function(t) {
     var sel = t.value === ocrTemplate ? ' selected' : '';
-    return '<option value="' + t.value + '"' + sel + '>' + t.label + '</option>';
+    return '<option value="' + escAttr(t.value) + '"' + sel + '>' + esc(t.label) + '</option>';
   }).join('');
 
   var ocrExtraId = 'ocrExtraFields';
@@ -2478,6 +2626,20 @@ async function saveSettings() {
   if (providerId) payload.moderation_llm_provider_id = providerId.value;
   var banNotice = $('#inputBanNotice');
   if (banNotice) payload.ban_notice = banNotice.value.trim();
+  var joinAction = $('#inputJoinAction');
+  if (joinAction) payload.join_default_action = joinAction.value;
+  var joinRejectReason = $('#inputJoinRejectReason');
+  if (joinRejectReason) payload.join_reject_reason = joinRejectReason.value.trim();
+  var appealWindow = $('#inputAppealWindow');
+  if (appealWindow) payload.appeal_window_minutes = parseIntOrDefault(appealWindow.value, 10);
+  var appealContext = $('#inputAppealContext');
+  if (appealContext) payload.appeal_context_count = parseIntOrDefault(appealContext.value, 30);
+  var appealTemplate = $('#inputAppealTemplate');
+  if (appealTemplate) payload.appeal_at_template = appealTemplate.value.trim();
+  var unbanInterval = $('#inputUnbanInterval');
+  if (unbanInterval) payload.auto_unban_scan_interval = parseIntOrDefault(unbanInterval.value, 60);
+  var unbanPermanentHours = $('#inputUnbanPermanentHours');
+  if (unbanPermanentHours) payload.auto_unban_permanent_hours = parseIntOrDefault(unbanPermanentHours.value, 168);
   var ocrProviderId = $('#inputOcrProviderId');
   if (ocrProviderId) payload.ocr_provider_id = ocrProviderId.value;
   var ocrTemplate = $('#inputOcrTemplate');
@@ -2518,16 +2680,18 @@ async function saveSettings() {
     else payload[key] = (inp.value || '').trim();
   });
   var res = await safePost('config', payload);
-  if (res && res.status === 'error') {
+  if (isApiError(res)) {
     toast('保存失败: ' + (res.message || ''), 'error');
   } else {
+    CONFIG = Object.assign({}, CONFIG, payload);
+    CONFIG_PROMISE = null;
     toast('设置已保存', 'success');
   }
 }
 
 async function loadFlood() {
   var res = await safeGet('anti_flood/status');
-  if (!res || res.status === 'error') { toast('加载刷屏数据失败', 'error'); return; }
+  if (!res || isApiError(res)) { toast('加载刷屏数据失败', 'error'); return; }
   var d = res;
   $('#floodEnabled').textContent = d.enabled ? '已启用' : '未启用';
   $('#floodEnabled').style.color = d.enabled ? 'var(--success)' : 'var(--text-muted)';
@@ -2567,20 +2731,20 @@ async function loadJoinRules() {
   var box = $('#joinRuleList');
   box.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('join_rules');
-  if (res && res.status === 'error') { box.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  if (isApiError(res)) { box.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   var list = res || [];
   if (!list.length) { box.innerHTML = '<p class="empty">暂无规则</p>'; return; }
   box.innerHTML = list.map(function(r) {
     return '<div class="setting-item"><div class="setting-info">' +
       '<div class="setting-label">群 ' + esc(r.group_id) + ' · ' + (r.enabled ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-default">停用</span>') + '</div>' +
       '<div class="setting-desc">默认动作: ' + esc(r.default_action) + ' · 通过词 ' + (r.accept_keywords || []).length + ' · 拒绝词 ' + (r.reject_keywords || []).length + '</div></div>' +
-      '<div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" data-jredit=\'' + esc(JSON.stringify(r)) + '\'>编辑</button>' +
-      '<button class="btn btn-danger btn-sm" data-jrdel="' + esc(r.group_id) + '">删除</button></div></div>';
+      '<div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" data-jredit="' + escAttr(JSON.stringify(r)) + '">编辑</button>' +
+      '<button class="btn btn-danger btn-sm" data-jrdel="' + escAttr(r.group_id) + '">删除</button></div></div>';
   }).join('');
   $$('[data-jrdel]', box).forEach(function(b) {
     b.addEventListener('click', async function() {
-      await safePost('join_rules/delete', { group_id: b.dataset.jrdel });
-      toast('已删除', 'success'); loadJoinRules();
+      var ok = await postOrToast('join_rules/delete', { group_id: b.dataset.jrdel }, '已删除', '删除规则失败');
+      if (ok) loadJoinRules();
     });
   });
   $$('[data-jredit]', box).forEach(function(b) {
@@ -2600,7 +2764,8 @@ async function saveJoinRule() {
     accept_keywords: $('#jrAccept').value, reject_keywords: $('#jrReject').value,
     default_action: $('#jrAction').value, reject_reason: $('#jrReason').value, enabled: $('#jrEnabled').checked
   });
-  toast(r && r.status === 'error' ? r.message : '已保存规则', r && r.status === 'error' ? 'error' : 'success');
+  if (apiCallFailed(r)) { toast('保存规则失败: ' + apiErrMsg(r, ''), 'error'); return; }
+  toast('已保存规则', 'success');
   loadJoinRules();
 }
 
@@ -2608,17 +2773,17 @@ async function saveJoinRule() {
 async function loadSuperAdmins() {
   var box = $('#superAdminList');
   var res = await safeGet('super_admin');
-  var list = (res && res.status === 'error') ? [] : (res || []);
+  var list = isApiError(res) ? [] : (res || []);
   box.innerHTML = list.length ? list.map(function(it) {
     return '<span class="list-tag list-tag-user">群' + esc(it.group_id) + ':' + esc(it.user_id) +
-      '<button class="btn-remove" data-sa-g="' + esc(it.group_id) + '" data-sa-u="' + esc(it.user_id) + '">&times;</button></span>';
+      '<button class="btn-remove" data-sa-g="' + escAttr(it.group_id) + '" data-sa-u="' + escAttr(it.user_id) + '">&times;</button></span>';
   }).join('') : '<p class="empty">暂无</p>';
   $$('.btn-remove', box).forEach(function(b) {
     b.addEventListener('click', async function() {
       var ok = await confirmModal({ title: '移除群超管', body: '确认移除群 <b>' + esc(b.dataset.saG) + '</b> 的超管 <b>' + esc(b.dataset.saU) + '</b>？', okText: '移除', danger: true });
       if (!ok) return;
-      await safePost('super_admin/remove', { group_id: b.dataset.saG, user_id: b.dataset.saU });
-      toast('已移除', 'success'); loadSuperAdmins();
+      var done = await postOrToast('super_admin/remove', { group_id: b.dataset.saG, user_id: b.dataset.saU }, '已移除', '移除群超管失败');
+      if (done) loadSuperAdmins();
     });
   });
 }
@@ -2626,19 +2791,19 @@ async function loadSuperAdmins() {
 async function loadGrants() {
   var box = $('#grantList');
   var res = await safeGet('admin_grant');
-  var list = (res && res.status === 'error') ? [] : (res || []);
+  var list = isApiError(res) ? [] : (res || []);
   box.innerHTML = list.length ? list.map(function(g) {
     return '<div class="setting-item"><div class="setting-info"><div class="setting-label">群 ' + esc(g.group_id) +
       ' ' + (g.enabled ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-default">停用</span>') + '</div>' +
       '<div class="setting-desc">群主:' + (g.grant_owner ? '✓' : '✗') + ' 管理员:' + (g.grant_admin ? '✓' : '✗') + '</div></div>' +
-      '<button class="btn btn-danger btn-sm" data-grant-del="' + esc(g.group_id) + '">删除</button></div>';
+      '<button class="btn btn-danger btn-sm" data-grant-del="' + escAttr(g.group_id) + '">删除</button></div>';
   }).join('') : '<p class="empty">暂无</p>';
   $$('[data-grant-del]', box).forEach(function(b) {
     b.addEventListener('click', async function() {
       var ok = await confirmModal({ title: '删除授权配置', body: '确认删除群 <b>' + esc(b.dataset.grantDel) + '</b> 的群管理员动态授权配置？', okText: '删除', danger: true });
       if (!ok) return;
-      await safePost('admin_grant/delete', { group_id: b.dataset.grantDel });
-      toast('已删除', 'success'); loadGrants();
+      var done = await postOrToast('admin_grant/delete', { group_id: b.dataset.grantDel }, '已删除', '删除授权配置失败');
+      if (done) loadGrants();
     });
   });
 }
@@ -2646,17 +2811,17 @@ async function loadGrants() {
 async function loadBlocks() {
   var box = $('#blockList');
   var res = await safeGet('admin_block');
-  var list = (res && res.status === 'error') ? [] : (res || []);
+  var list = isApiError(res) ? [] : (res || []);
   box.innerHTML = list.length ? list.map(function(it) {
     return '<span class="list-tag list-tag-black">群' + esc(it.group_id) + ':' + esc(it.user_id) +
-      '<button class="btn-remove" data-ab-g="' + esc(it.group_id) + '" data-ab-u="' + esc(it.user_id) + '">&times;</button></span>';
+      '<button class="btn-remove" data-ab-g="' + escAttr(it.group_id) + '" data-ab-u="' + escAttr(it.user_id) + '">&times;</button></span>';
   }).join('') : '<p class="empty">暂无</p>';
   $$('.btn-remove', box).forEach(function(b) {
     b.addEventListener('click', async function() {
       var ok = await confirmModal({ title: '恢复 bot 管理权限', body: '确认恢复群 <b>' + esc(b.dataset.abG) + '</b> 中 <b>' + esc(b.dataset.abU) + '</b> 的 bot 管理权限？' });
       if (!ok) return;
-      await safePost('admin_block/remove', { group_id: b.dataset.abG, user_id: b.dataset.abU });
-      toast('已恢复其权限', 'success'); loadBlocks();
+      var done = await postOrToast('admin_block/remove', { group_id: b.dataset.abG, user_id: b.dataset.abU }, '已恢复其权限', '恢复权限失败');
+      if (done) loadBlocks();
     });
   });
 }
@@ -2666,7 +2831,7 @@ async function loadAppeals() {
   var box = $('#appealList');
   box.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('appeals', { limit: 100 });
-  var list = (res && res.status === 'error') ? [] : (res || []);
+  var list = isApiError(res) ? [] : (res || []);
   if (!list.length) { box.innerHTML = '<p class="empty">暂无申诉</p>'; return; }
   var stMap = { waiting: '待处理', approved: '已通过', rejected: '已驳回', expired: '已超时' };
   var stCls = { waiting: 'badge-warning', approved: 'badge-success', rejected: 'badge-danger', expired: 'badge-default' };
@@ -2681,17 +2846,17 @@ async function loadUnbans() {
   var box = $('#unbanList');
   box.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('scheduled_unbans');
-  var list = (res && res.status === 'error') ? [] : (res || []);
+  var list = isApiError(res) ? [] : (res || []);
   if (!list.length) { box.innerHTML = '<p class="empty">暂无计划</p>'; return; }
   box.innerHTML = '<table class="log-table"><thead><tr><th>群号</th><th>用户</th><th>解禁时间</th><th>操作</th></tr></thead><tbody>' +
     list.map(function(u) {
       return '<tr><td>' + esc(u.group_id) + '</td><td>' + esc(u.user_id) + '</td><td>' + fmtTime(u.unban_at) +
-        '</td><td><button class="btn btn-danger btn-sm" data-unban="' + u.id + '">取消</button></td></tr>';
+        '</td><td><button class="btn btn-danger btn-sm" data-unban="' + escAttr(u.id) + '">取消</button></td></tr>';
     }).join('') + '</tbody></table>';
   $$('[data-unban]', box).forEach(function(b) {
     b.addEventListener('click', async function() {
-      await safePost('scheduled_unbans/delete', { id: parseInt(b.dataset.unban) });
-      toast('已取消', 'success'); loadUnbans();
+      var ok = await postOrToast('scheduled_unbans/delete', { id: parseInt(b.dataset.unban) }, '已取消', '取消解禁计划失败');
+      if (ok) loadUnbans();
     });
   });
 }
@@ -2705,13 +2870,13 @@ async function loadGroupCfgGroups() {
   var grid = $('#gcGroupGrid');
   grid.innerHTML = '<p class="empty">加载中...</p>';
   var cfgRes = await safeGet('configured_groups');
-  GC_CONFIGURED = (cfgRes && cfgRes.status === 'error') ? [] : (cfgRes || []);
+  GC_CONFIGURED = isApiError(cfgRes) ? [] : (cfgRes || []);
   $('#gcConfiguredHint').textContent = GC_CONFIGURED.length ? ('已配置 ' + GC_CONFIGURED.length + ' 个群') : '暂无群单独配置';
   // 拉统计判断白名单是否启用（>0 则仅白名单群可配）
   var stats = await safeGet('stats');
   var whiteCount = (stats && stats.group_white_list_count) || 0;
   var res = await safeGet('groups');
-  if (res && res.status === 'error') { grid.innerHTML = '<p class="empty">' + esc(res.message) + '（可直接输入白名单群号配置）</p>'; return; }
+  if (isApiError(res)) { grid.innerHTML = '<p class="empty">' + esc(res.message) + '（可直接输入白名单群号配置）</p>'; return; }
   var all = res || [];
   // 仅白名单群可配置：白名单非空时只显示白名单群，为空时（=全部群启用）显示全部
   GC_GROUPS = whiteCount > 0 ? all.filter(function(g) { return g.is_white; }) : all;
@@ -2728,8 +2893,8 @@ function renderGcGroups(list) {
   }
   grid.innerHTML = list.map(function(g) {
     var cfgBadge = GC_CONFIGURED.indexOf(String(g.group_id)) !== -1 ? '<span class="group-badge badge-white">已配置</span>' : '';
-    return '<div class="group-card" data-gcid="' + esc(g.group_id) + '">' +
-      '<img class="group-avatar" src="https://p.qlogo.cn/gh/' + esc(g.group_id) + '/' + esc(g.group_id) + '/0" onerror="this.style.visibility=\'hidden\'" />' +
+    return '<div class="group-card" data-gcid="' + escAttr(g.group_id) + '">' +
+      '<img class="group-avatar" src="https://p.qlogo.cn/gh/' + encodeURIComponent(g.group_id) + '/' + encodeURIComponent(g.group_id) + '/0" onerror="this.style.visibility=\'hidden\'" />' +
       '<div class="group-info"><div class="group-name">' + esc(g.group_name || g.group_id) + '</div>' +
       '<div class="group-meta"><span class="group-id">' + esc(g.group_id) + '</span> ' + cfgBadge + '</div></div></div>';
   }).join('');
@@ -2744,7 +2909,7 @@ async function openGroupCfg(gid) {
   var box = $('#gcConfigList');
   box.innerHTML = '<p class="empty">加载中...</p>';
   var res = await safeGet('group_config', { group_id: gid });
-  if (res && res.status === 'error') { box.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
+  if (isApiError(res)) { box.innerHTML = '<p class="empty">' + esc(res.message) + '</p>'; return; }
   renderGroupCfgItems(res.items || []);
 }
 function renderGroupCfgItems(items) {
@@ -2757,50 +2922,94 @@ function renderGroupCfgItems(items) {
     if (it.type === 'bool') {
       // 三态：继承全局 / 强制开 / 强制关
       var cur = inherited ? 'inherit' : (String(it.override).toLowerCase() === 'true' ? 'on' : 'off');
-      control = '<select class="input-sm gc-sel" data-key="' + esc(it.key) + '" data-type="bool">' +
+      control = '<select class="input-sm gc-sel" data-key="' + escAttr(it.key) + '" data-type="bool">' +
         '<option value="inherit"' + (cur === 'inherit' ? ' selected' : '') + '>继承全局（' + globalText + '）</option>' +
         '<option value="on"' + (cur === 'on' ? ' selected' : '') + '>强制开启</option>' +
         '<option value="off"' + (cur === 'off' ? ' selected' : '') + '>强制关闭</option></select>';
-    } else {
+    } else if (it.type === 'int') {
       // 整型：留空=继承；填值=覆盖
-      var val = inherited ? '' : esc(it.override);
-      control = '<input class="input-sm gc-int" data-key="' + esc(it.key) + '" data-type="int" placeholder="继承(' + esc(globalText) + ')" value="' + val + '" style="width:130px" />' +
-        '<button class="btn btn-outline btn-sm gc-int-save" data-key="' + esc(it.key) + '">保存</button>' +
-        '<button class="btn btn-ghost btn-sm gc-int-clear" data-key="' + esc(it.key) + '">继承</button>';
+      var val = inherited ? '' : escAttr(it.override);
+      control = '<input class="input-sm gc-int" data-key="' + escAttr(it.key) + '" data-type="int" placeholder="继承(' + escAttr(globalText) + ')" value="' + val + '" style="width:130px" />' +
+        '<button class="btn btn-outline btn-sm gc-int-save" data-key="' + escAttr(it.key) + '">保存</button>' +
+        '<button class="btn btn-ghost btn-sm gc-int-clear" data-key="' + escAttr(it.key) + '">继承</button>';
+    } else if (it.type === 'string' && Array.isArray(it.options) && it.options.length) {
+      var curStr = inherited ? '' : String(it.override);
+      var optHtml = '<option value=""' + (inherited ? ' selected' : '') + '>继承全局（' + esc(globalText) + '）</option>';
+      optHtml += it.options.map(function(o) {
+        var ov = String(o);
+        return '<option value="' + escAttr(ov) + '"' + (curStr === ov ? ' selected' : '') + '>' + esc(ov) + '</option>';
+      }).join('');
+      control = '<select class="input-sm gc-str-sel" data-key="' + escAttr(it.key) + '" data-type="string" style="width:160px">' + optHtml + '</select>';
+    } else {
+      var textVal = inherited ? '' : String(it.override);
+      var isText = it.type === 'text';
+      var field = isText
+        ? '<textarea class="input-md gc-text" data-key="' + escAttr(it.key) + '" data-type="text" rows="2" placeholder="继承全局" style="width:260px">' + esc(textVal) + '</textarea>'
+        : '<input class="input-sm gc-text" data-key="' + escAttr(it.key) + '" data-type="string" placeholder="继承(' + escAttr(globalText) + ')" value="' + escAttr(textVal) + '" style="width:180px" />';
+      control = field +
+        '<button class="btn btn-outline btn-sm gc-text-save" data-key="' + escAttr(it.key) + '">保存</button>' +
+        '<button class="btn btn-ghost btn-sm gc-text-clear" data-key="' + escAttr(it.key) + '">继承</button>';
     }
     return '<div class="setting-item"><div class="setting-info"><div class="setting-label">' + esc(it.description) +
       (inherited ? '' : ' <span class="badge badge-warning">已覆盖</span>') +
-      '</div><div class="setting-desc">' + esc(it.key) + '</div></div><div style="display:flex;gap:6px;align-items:center">' + control + '</div></div>';
+      '</div><div class="setting-desc">' + esc(it.key) + (it.hint ? ' · ' + esc(it.hint) : '') + '</div></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + control + '</div></div>';
   }).join('');
   // bool 三态下拉
   $$('.gc-sel', box).forEach(function(sel) {
     sel.addEventListener('change', async function() {
       var key = sel.dataset.key, v = sel.value;
+      var ok;
       if (v === 'inherit') {
-        await safePost('group_config/delete', { group_id: GC_CUR, key: key });
-        toast('已恢复继承', 'success');
+        ok = await postOrToast('group_config/delete', { group_id: GC_CUR, key: key }, '已恢复继承', '恢复继承失败');
       } else {
-        await safePost('group_config/set', { group_id: GC_CUR, key: key, value: v === 'on' });
-        toast('已设置', 'success');
+        ok = await postOrToast('group_config/set', { group_id: GC_CUR, key: key, value: v === 'on' }, '已设置', '设置失败');
       }
-      openGroupCfg(GC_CUR);
+      if (ok) openGroupCfg(GC_CUR);
     });
   });
   // 整型保存/继承
   $$('.gc-int-save', box).forEach(function(b) {
     b.addEventListener('click', async function() {
       var key = b.dataset.key;
-      var inp = box.querySelector('.gc-int[data-key="' + key + '"]');
+      var inp = box.querySelector('.gc-int[data-key="' + cssAttr(key) + '"]');
       var v = (inp.value || '').trim();
-      if (v === '') { await safePost('group_config/delete', { group_id: GC_CUR, key: key }); }
-      else { await safePost('group_config/set', { group_id: GC_CUR, key: key, value: v }); }
-      toast('已保存', 'success'); openGroupCfg(GC_CUR);
+      var ok = v === ''
+        ? await postOrToast('group_config/delete', { group_id: GC_CUR, key: key }, '已恢复继承', '恢复继承失败')
+        : await postOrToast('group_config/set', { group_id: GC_CUR, key: key, value: v }, '已保存', '保存失败');
+      if (ok) openGroupCfg(GC_CUR);
+    });
+  });
+  $$('.gc-str-sel', box).forEach(function(sel) {
+    sel.addEventListener('change', async function() {
+      var key = sel.dataset.key;
+      var v = sel.value;
+      var ok = v === ''
+        ? await postOrToast('group_config/delete', { group_id: GC_CUR, key: key }, '已恢复继承', '恢复继承失败')
+        : await postOrToast('group_config/set', { group_id: GC_CUR, key: key, value: v }, '已保存', '保存失败');
+      if (ok) openGroupCfg(GC_CUR);
+    });
+  });
+  $$('.gc-text-save', box).forEach(function(b) {
+    b.addEventListener('click', async function() {
+      var key = b.dataset.key;
+      var inp = box.querySelector('.gc-text[data-key="' + cssAttr(key) + '"]');
+      var v = (inp && inp.value || '').trim();
+      var ok = v === ''
+        ? await postOrToast('group_config/delete', { group_id: GC_CUR, key: key }, '已恢复继承', '恢复继承失败')
+        : await postOrToast('group_config/set', { group_id: GC_CUR, key: key, value: v }, '已保存', '保存失败');
+      if (ok) openGroupCfg(GC_CUR);
+    });
+  });
+  $$('.gc-text-clear', box).forEach(function(b) {
+    b.addEventListener('click', async function() {
+      var ok = await postOrToast('group_config/delete', { group_id: GC_CUR, key: b.dataset.key }, '已恢复继承', '恢复继承失败');
+      if (ok) openGroupCfg(GC_CUR);
     });
   });
   $$('.gc-int-clear', box).forEach(function(b) {
     b.addEventListener('click', async function() {
-      await safePost('group_config/delete', { group_id: GC_CUR, key: b.dataset.key });
-      toast('已恢复继承', 'success'); openGroupCfg(GC_CUR);
+      var ok = await postOrToast('group_config/delete', { group_id: GC_CUR, key: b.dataset.key }, '已恢复继承', '恢复继承失败');
+      if (ok) openGroupCfg(GC_CUR);
     });
   });
 }
@@ -2814,15 +3023,14 @@ async function init() {
     }, 3000);
   }
 
-  $('#btnRefreshAll').addEventListener('click', loadOverview);
-  $('#btnRefreshTodayStats').addEventListener('click', loadOverview);
-  $('#btnRefreshGroups').addEventListener('click', loadGroups);
-  $('#btnRefreshUsers').addEventListener('click', loadUsers);
-  $('#btnRefreshLogs').addEventListener('click', loadLogs);
-  $('#btnSaveSettings').addEventListener('click', saveSettings);
-
   // v2.4.0 新增功能的事件绑定（防御式，元素不存在则跳过）
   var bindClick = function(id, fn) { var el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  bindClick('btnRefreshAll', loadOverview);
+  bindClick('btnRefreshTodayStats', loadOverview);
+  bindClick('btnRefreshGroups', function() { loadGroups(true); });
+  bindClick('btnRefreshUsers', loadUsers);
+  bindClick('btnRefreshLogs', loadLogs);
+  bindClick('btnSaveSettings', saveSettings);
   bindClick('btnRefreshJoin', loadJoinRules);
   bindClick('btnSaveJoinRule', saveJoinRule);
   bindClick('btnRefreshPerms', function() { loadSuperAdmins(); loadGrants(); loadBlocks(); });
@@ -2831,30 +3039,40 @@ async function init() {
     var uids = ($('#saUser').value || '').split(/[\s,，]+/).filter(Boolean);
     if (!gids.length || !uids.length) { toast('请填群号和QQ（可多个，逗号分隔）', 'error'); return; }
     var n = 0;
+    var fail = 0;
     for (var i = 0; i < gids.length; i++) {
       for (var j = 0; j < uids.length; j++) {
-        await safePost('super_admin/add', { group_id: gids[i], user_id: uids[j] }); n++;
+        var r = await safePost('super_admin/add', { group_id: gids[i], user_id: uids[j] });
+        if (apiCallFailed(r)) fail++;
+        else n++;
       }
     }
-    toast('已添加 ' + n + ' 条群超管', 'success'); loadSuperAdmins();
+    if (n) toast('已添加 ' + n + ' 条群超管' + (fail ? '，失败 ' + fail + ' 条' : ''), 'success');
+    else toast('添加群超管失败', 'error');
+    if (n) loadSuperAdmins();
   });
   bindClick('btnSaveGrant', async function() {
     var g = $('#agGroup').value.trim();
     if (!g) { toast('请填群号', 'error'); return; }
-    await safePost('admin_grant/save', { group_id: g, grant_owner: $('#agOwner').checked, grant_admin: $('#agAdmin').checked, enabled: true });
-    toast('已保存（需在设置开启总开关）', 'success'); loadGrants();
+    var ok = await postOrToast('admin_grant/save', { group_id: g, grant_owner: $('#agOwner').checked, grant_admin: $('#agAdmin').checked, enabled: true }, '已保存（需在设置开启总开关）', '保存授权失败');
+    if (ok) loadGrants();
   });
   bindClick('btnAddBlock', async function() {
     var gids = ($('#abGroup').value || '').split(/[\s,，]+/).filter(Boolean);
     var uids = ($('#abUser').value || '').split(/[\s,，]+/).filter(Boolean);
     if (!gids.length || !uids.length) { toast('请填群号和QQ（可多个，逗号分隔）', 'error'); return; }
     var n = 0;
+    var fail = 0;
     for (var i = 0; i < gids.length; i++) {
       for (var j = 0; j < uids.length; j++) {
-        await safePost('admin_block/add', { group_id: gids[i], user_id: uids[j] }); n++;
+        var r = await safePost('admin_block/add', { group_id: gids[i], user_id: uids[j] });
+        if (apiCallFailed(r)) fail++;
+        else n++;
       }
     }
-    toast('已移除 ' + n + ' 条群管bot权限', 'success'); loadBlocks();
+    if (n) toast('已移除 ' + n + ' 条群管bot权限' + (fail ? '，失败 ' + fail + ' 条' : ''), 'success');
+    else toast('移除群管bot权限失败', 'error');
+    if (n) loadBlocks();
   });
   bindClick('btnRefreshTasks', function() { loadAppeals(); loadUnbans(); });
   bindClick('btnRefreshGroupCfg', loadGroupCfgGroups);
@@ -2865,8 +3083,8 @@ async function init() {
   });
   bindClick('gcClearAll', async function() {
     if (!GC_CUR) return;
-    await safePost('group_config/clear', { group_id: GC_CUR });
-    toast('已清空该群配置', 'success'); openGroupCfg(GC_CUR); loadGroupCfgGroups();
+    var ok = await postOrToast('group_config/clear', { group_id: GC_CUR }, '已清空该群配置', '清空群配置失败');
+    if (ok) { openGroupCfg(GC_CUR); loadGroupCfgGroups(); }
   });
   var gcSearch = document.getElementById('gcGroupSearch');
   if (gcSearch) gcSearch.addEventListener('input', function() {
@@ -2883,11 +3101,11 @@ async function init() {
   if (btnRefreshMigration) btnRefreshMigration.addEventListener('click', function() { loadMigrationStatus(true); });
   var btnRunMigration = $('#btnRunMigration');
   if (btnRunMigration) btnRunMigration.addEventListener('click', runMigration);
-  $('#btnModalClose').addEventListener('click', closeModal);
-  $('#goSettingsFromBanner').addEventListener('click', function() {
+  bindClick('btnModalClose', closeModal);
+  bindClick('goSettingsFromBanner', function() {
     switchTab('settings');
   });
-  $('#openDisclaimer').addEventListener('click', function() {
+  bindClick('openDisclaimer', function() {
     var url = 'https://mianze.0n.pub';
     try { window.top.location.href = url; } catch(e1) {
       try { window.open(url); } catch(e2) {
@@ -2912,14 +3130,16 @@ async function init() {
       $('#btnDisclaimerWhyOk').addEventListener('click', closeModal);
     });
   }
-  $('#disclaimerAgreed').addEventListener('change', function() {
+  var disclaimerAgreed = document.getElementById('disclaimerAgreed');
+  if (disclaimerAgreed) disclaimerAgreed.addEventListener('change', function() {
     updateLinDisclaimerStatus(this.checked);
     var banner = $('#disclaimerBanner');
     if (banner) banner.style.display = this.checked ? 'none' : 'block';
   });
-  $('#modalOverlay').addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
+  var modalOverlay = document.getElementById('modalOverlay');
+  if (modalOverlay) modalOverlay.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeModal(); });
 
-  $('#btnBackGroups').addEventListener('click', function() {
+  bindClick('btnBackGroups', function() {
     $('#memberPanel').style.display = 'none';
     var groupGrid = $('#groupGrid');
     if (groupGrid) { var card = groupGrid.closest('.card'); if (card) card.style.display = ''; }
@@ -2928,23 +3148,24 @@ async function init() {
     CURRENT_MEMBERS = [];
   });
 
-  $('#searchGroupInput').addEventListener('input', function() {
+  var searchGroupInput = document.getElementById('searchGroupInput');
+  if (searchGroupInput) searchGroupInput.addEventListener('input', function() {
     if (CONFIG._groups) renderGroups(CONFIG._groups);
   });
-  $('#searchMemberInput').addEventListener('input', function() {
+  var searchMemberInput = document.getElementById('searchMemberInput');
+  if (searchMemberInput) searchMemberInput.addEventListener('input', function() {
     if (CURRENT_MEMBERS.length) renderMembers(CURRENT_MEMBERS);
   });
 
-  $('#btnAddAdmin').addEventListener('click', async function() {
+  bindClick('btnAddAdmin', async function() {
     var vals = ($('#adminInput').value || '').split(/[\s,，]+/).filter(Boolean);
     if (!vals.length) return;
-    for (var i = 0; i < vals.length; i++) await safePost('admin/add', { user_id: vals[i] });
+    var ok = await postManyOrToast(vals, 'admin/add', 'user_id', '已添加管理员', '添加管理员失败');
     $('#adminInput').value = '';
-    toast('已添加 ' + vals.length + ' 个管理员', 'success');
-    loadAdmins();
+    if (ok) loadAdmins();
   });
 
-  $('#btnBatchDelete').addEventListener('click', async function() {
+  bindClick('btnBatchDelete', async function() {
     var ids = $$('.ck:checked').map(function(ck) { return ck.dataset.uid; });
     if (!ids.length) { toast('请先勾选用户', 'error'); return; }
     showModal('批量删除', '<p>确认删除所有记录？<br>将删除 ' + ids.length + ' 个用户的全部审核记录。</p>',
@@ -2953,20 +3174,21 @@ async function init() {
     );
     $('#btnCancelBatchDelete').addEventListener('click', closeModal);
     $('#btnConfirmBatchDelete').addEventListener('click', async function() {
-      var allRes = await safeGet('logs/export');
-      if (allRes && allRes.status !== 'error') {
-        var delIds = (allRes || []).filter(function(l) { return ids.indexOf(String(l.user_id)) !== -1; }).map(function(l) { return l.id; }).filter(function(id) { return id !== undefined && id !== null; });
-        if (delIds.length) await safePost('logs/delete', { ids: delIds });
+      var delRes = await safePost('logs/delete', { user_ids: ids });
+      if (apiCallFailed(delRes)) {
+        closeModal();
+        toast('批量删除失败: ' + apiErrMsg(delRes, ''), 'error');
+        return;
       }
       closeModal();
-      toast('批量删除完成', 'success');
+      toast('批量删除完成，已删除 ' + (delRes.deleted || 0) + ' 条记录', 'success');
       loadUsers();
     });
   });
 
-  $('#btnExport').addEventListener('click', async function() {
+  bindClick('btnExport', async function() {
     var res = await safeGet('logs/export');
-    if (res && res.status === 'error') { toast('导出失败', 'error'); return; }
+    if (isApiError(res)) { toast('导出失败', 'error'); return; }
     var data = res || [];
     if (!data.length) { toast('暂无数据可导出', 'error'); return; }
     var headers = Object.keys(data[0]);
@@ -2979,7 +3201,7 @@ async function init() {
     toast('导出成功', 'success');
   });
 
-  try { var _cfgRes = await safeGet('config'); if (_cfgRes && _cfgRes.status !== 'error') CONFIG = Object.assign({}, CONFIG, _cfgRes); } catch(e) {}
+  try { await loadConfigCached(); } catch(e) {}
   var savedTheme = ls.getItem('gg_theme');
   if (!savedTheme) savedTheme = (CONFIG.webui_dark_mode === true) ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
@@ -2998,30 +3220,37 @@ async function init() {
     }
   }
   updateThemeUI(savedTheme);
-  $('#themeToggle').addEventListener('click', async function() {
+  bindClick('themeToggle', async function() {
     var current = document.documentElement.getAttribute('data-theme');
     var next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     ls.setItem('gg_theme', next);
     updateThemeUI(next);
     try {
-      await safePost('config', { webui_dark_mode: next === 'dark' });
+      var r = await safePost('config', { webui_dark_mode: next === 'dark' });
+      if (apiCallFailed(r)) toast('主题偏好保存失败: ' + apiErrMsg(r, ''), 'error');
     } catch(e) {}
   });
 
-  $('#btnRefreshFlood').addEventListener('click', loadFlood);
+  bindClick('btnRefreshFlood', loadFlood);
 
-  $('#statusDot').style.background = 'var(--success)';
-  $('#statusText').textContent = '已连接';
+  var statusDot = document.getElementById('statusDot');
+  var statusText = document.getElementById('statusText');
+  if (statusDot) statusDot.style.background = 'var(--success)';
+  if (statusText) statusText.textContent = '已连接';
 
   loadOverview();
   loadAdmins();
 }
 
 (async function() {
+  function setStatus(text, color) {
+    var txt = document.getElementById('statusText');
+    var dot = document.getElementById('statusDot');
+    if (txt) txt.textContent = text;
+    if (dot) dot.style.background = color;
+  }
   bridge = window.AstrBotPluginPage;
-  if (bridge && bridge.apiGet) apiGet = bridge.apiGet.bind(bridge);
-  if (bridge && bridge.apiPost) apiPost = bridge.apiPost.bind(bridge);
   if (bridge && bridge.ready) {
     try {
       await Promise.race([
@@ -3032,14 +3261,21 @@ async function init() {
       console.warn('[GG] bridge.ready() failed or timed out:', e);
     }
   }
+  bridge = window.AstrBotPluginPage || bridge;
+  if (bridge && bridge.apiGet) apiGet = bridge.apiGet.bind(bridge);
+  if (bridge && bridge.apiPost) apiPost = bridge.apiPost.bind(bridge);
   if (apiGet && apiPost) {
-    init();
+    try {
+      await init();
+    } catch(e) {
+      console.error('[GG] init failed:', e);
+      setStatus('初始化失败', 'var(--danger)');
+      toast('页面初始化失败: ' + String(e && e.message || e), 'error');
+    }
   } else if (bridge) {
-    document.getElementById('statusText').textContent = 'API 不可用';
-    document.getElementById('statusDot').style.background = 'var(--danger)';
+    setStatus('API 不可用', 'var(--danger)');
   } else {
-    document.getElementById('statusText').textContent = 'Bridge 未加载';
-    document.getElementById('statusDot').style.background = 'var(--danger)';
+    setStatus('Bridge 未加载', 'var(--danger)');
   }
 })();
   </script>

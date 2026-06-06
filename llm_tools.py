@@ -45,6 +45,7 @@ class LlmToolsMixin:
             if not ok:
                 yield event.plain_result(f"禁言失败: {err}")
                 return
+            self._schedule_unban(str(gid), user_id, duration_seconds)
             # 6. 构造成功响应（plain_result 将以纯文本形式回复）
             yield event.plain_result(f"已禁言 {user_id} {duration_minutes}分钟")
         except Exception as e:
@@ -515,8 +516,14 @@ class LlmToolsMixin:
             minutes = self._clamp_int(duration_minutes, 10, 1, 30 * 24 * 60)
             success, fail = 0, 0
             for uid in targets:
+                uid_int = self._safe_int(uid, 0)
+                ok_pre, _pre_msg = await self._precheck_member_action(client, gid, uid_int, "ban")
+                if not ok_pre:
+                    fail += 1
+                    await asyncio.sleep(0.1)
+                    continue
                 done, _e = await self._call_group_api(client, 'set_group_ban', "批量禁言",
-                                                      group_id=gid, user_id=self._safe_int(uid, 0), duration=minutes * 60)
+                                                      group_id=gid, user_id=uid_int, duration=minutes * 60)
                 if done:
                     success += 1
                     self._schedule_unban(str(gid), uid, minutes * 60)
@@ -544,8 +551,14 @@ class LlmToolsMixin:
                 return
             success, fail = 0, 0
             for uid in targets:
+                uid_int = self._safe_int(uid, 0)
+                ok_pre, _pre_msg = await self._precheck_member_action(client, gid, uid_int, "kick")
+                if not ok_pre:
+                    fail += 1
+                    await asyncio.sleep(0.1)
+                    continue
                 done, _e = await self._call_group_api(client, 'set_group_kick', "批量踢人",
-                                                      group_id=gid, user_id=self._safe_int(uid, 0))
+                                                      group_id=gid, user_id=uid_int)
                 if done:
                     success += 1
                 else:

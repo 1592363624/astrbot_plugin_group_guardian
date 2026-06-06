@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import csv
 import io
 import re
 import sqlite3
+import time
 from collections import deque
 from typing import Tuple
 
@@ -71,6 +73,53 @@ class WebMixin:
             if val in ("0", "false", "no", "off", ""):
                 return False
         return default
+
+    @staticmethod
+    def _config_int_ranges():
+        return {
+            "moderation_ban_duration": (60, 2592000),
+            "anti_flood_rate_per_second": (0, 999),
+            "anti_flood_rate_per_minute": (0, 99999),
+            "anti_flood_rate_per_hour": (0, 999999),
+            "anti_flood_mute_duration": (0, 2592000),
+            "anti_flood_recall_threshold": (1, 999999),
+            "repeat_detect_window_seconds": (0, 86400),
+            "repeat_detect_count": (2, 9999),
+            "long_text_threshold": (0, 1000000),
+            "appeal_window_minutes": (1, 10080),
+            "appeal_context_count": (1, 500),
+            "auto_unban_scan_interval": (10, 3600),
+            "auto_unban_permanent_hours": (1, 8760),
+        }
+
+    def _normalize_int_config_value(self, key: str, value) -> int:
+        meta = self._config_schema.get(key, {})
+        try:
+            val = int(value)
+        except (ValueError, TypeError):
+            try:
+                val = int(meta.get("default", 0) or 0)
+            except (ValueError, TypeError):
+                val = 0
+        lo, hi = self._config_int_ranges().get(key, (None, None))
+        if lo is not None:
+            val = max(lo, val)
+        if hi is not None:
+            val = min(hi, val)
+        return val
+
+    async def _read_required_json_value(self, key: str) -> Tuple[str, object]:
+        data = await quart_request.get_json(force=True, silent=True) or {}
+        value = str(data.get(key, "")).strip()
+        if not value:
+            return "", jsonify({"status": "error", "message": f"缺少 {key}"})
+        return value, None
+
+    def _managed_list_payload(self, id_key: str, value: str, response_key: str, values: list) -> dict:
+        return {"status": "success", id_key: value, response_key: values}
+
+    async def _call_onebot_web(self, client, action: str, timeout: float = 8.0, **kwargs):
+        return await asyncio.wait_for(client.call_action(action, **kwargs), timeout=timeout)
 
     def _register_web_apis(self):
         # 遍历路由表，每项含 path / handler / methods / desc，统一注册到 self.context.register_web_api。
@@ -239,17 +288,6 @@ class WebMixin:
         try:
             data = await quart_request.get_json(force=True, silent=True) or {}
             schema = self._config_schema
-            int_ranges = {
-                "moderation_ban_duration": (60, 2592000),
-                "anti_flood_rate_per_second": (0, 999),
-                "anti_flood_rate_per_minute": (0, 99999),
-                "anti_flood_rate_per_hour": (0, 999999),
-                "anti_flood_mute_duration": (0, 2592000),
-                "anti_flood_recall_threshold": (1, 999999),
-                "repeat_detect_window_seconds": (0, 86400),
-                "repeat_detect_count": (2, 9999),
-                "long_text_threshold": (0, 1000000),
-            }
             old_config = {k: self.config.get(k) for k in data if k.startswith("lexicon_")}
             old_enabled = self.config.get("anti_flood_enabled", True)
             # 单群管理类名单（群白/群黑/用户黑/用户白/管理员）v2.4.0 起改由专用 API + DB 管理，
@@ -274,19 +312,14 @@ class WebMixin:
                         self.config[key] = [str(x).strip() for x in val if x]
                         updated.append(key)
                 elif field_type == "int":
-                    try:
-                        val = int(value)
-                        lo, hi = int_ranges.get(key, (None, None))
-                        if lo is not None:
-                            val = max(lo, val)
-                        if hi is not None:
-                            val = min(hi, val)
-                        self.config[key] = val
-                        updated.append(key)
-                    except (ValueError, TypeError):
-                        pass
+                    self.config[key] = self._normalize_int_config_value(key, value)
+                    updated.append(key)
                 elif field_type in ("string", "text"):
-                    self.config[key] = str(value)
+                    str_value = str(value)
+                    options = schema[key].get("options") or []
+                    if options and str_value not in [str(x) for x in options]:
+                        continue
+                    self.config[key] = str_value
                     updated.append(key)
             if "auto_moderate_enabled" in updated:
                 self.auto_moderate_enabled = self._parse_bool(self.config.get("auto_moderate_enabled", True), True)
@@ -770,12 +803,23 @@ class WebMixin:
         try:
             data = await quart_request.get_json(force=True, silent=True) or {}
             ids = data.get("ids", [])
+            user_ids = data.get("user_ids", [])
+            if isinstance(user_ids, str):
+                user_ids = [x.strip() for x in re.split(r"[,，\s]+", user_ids) if x.strip()]
             delete_all = data.get("delete_all", False)
             if delete_all:
                 count = self._storage.delete_all_logs()
                 self._moderation_logs.clear()
                 self._invalidate_stats_cache()
                 return jsonify({"status": "success", "deleted": count})
+            if user_ids:
+                user_set = {str(uid).strip() for uid in user_ids if str(uid).strip()}
+                if not user_set:
+                    return jsonify({"status": "error", "message": "未指定要删除的用户ID"})
+                deleted = self._storage.delete_logs_by_users(user_set)
+                self._moderation_logs = deque((l for l in self._moderation_logs if str(l.get("user_id", "")) not in user_set), maxlen=500)
+                self._invalidate_stats_cache()
+                return jsonify({"status": "success", "deleted": deleted})
             if not ids:
                 return jsonify({"status": "error", "message": "未指定要删除的日志ID"})
             id_set = set()
@@ -785,7 +829,7 @@ class WebMixin:
                 except (ValueError, TypeError):
                     continue
             deleted = self._storage.delete_logs(id_set)
-            self._moderation_logs = deque((l for l in self._moderation_logs if l.get("id") not in id_set), maxlen=500)
+            self._moderation_logs = deque((l for l in self._moderation_logs if self._safe_int(l.get("id"), 0) not in id_set), maxlen=500)
             self._invalidate_stats_cache()
             return jsonify({"status": "success", "deleted": deleted})
         except Exception as e:
@@ -812,11 +856,16 @@ class WebMixin:
     async def _web_get_groups(self):
         # 获取 Bot 加入的所有群列表，附带群头像、黑白名单状态、今日拦截数。
         # 需要 QQ 客户端已连接，否则返回错误提示。
+        force = str(quart_request.args.get("force", "")).strip().lower() in ("1", "true", "yes")
+        cache = getattr(self, "_web_group_cache", {"ts": 0.0, "data": []})
+        now = time.time()
+        if not force and cache.get("data") and now - float(cache.get("ts", 0) or 0) < 20:
+            return jsonify({"status": "success", "data": cache.get("data", [])})
         client = await self._get_client()
         if not client:
             return jsonify({"status": "error", "message": "无法获取QQ客户端，请确保已连接"})
         try:
-            result = await client.call_action('get_group_list')
+            result = await self._call_onebot_web(client, 'get_group_list', timeout=8.0)
             groups = self._extract_list_result(result)
             today_start = self._today_start()
             white_set = self._group_white_set
@@ -841,7 +890,12 @@ class WebMixin:
                     "is_black": is_black,
                     "today_blocked": today_blocked_map.get(gid, 0),
                 })
+            self._web_group_cache = {"ts": now, "data": enriched}
             return jsonify({"status": "success", "data": enriched})
+        except asyncio.TimeoutError:
+            if cache.get("data"):
+                return jsonify({"status": "success", "data": cache.get("data", []), "stale": True})
+            return jsonify({"status": "error", "message": "获取群列表超时，请稍后重试"})
         except Exception as e:
             return jsonify({"status": "error", "message": f"获取群列表失败: {e}"})
 
@@ -851,12 +905,18 @@ class WebMixin:
         group_id = quart_request.args.get("group_id", "").strip()
         if not group_id:
             return jsonify({"status": "error", "message": "缺少 group_id 参数"})
+        force = str(quart_request.args.get("force", "")).strip().lower() in ("1", "true", "yes")
+        member_cache = getattr(self, "_web_member_cache", {})
+        cached = member_cache.get(group_id)
+        now = time.time()
+        if not force and cached and now - float(cached.get("ts", 0) or 0) < 15:
+            return jsonify({"status": "success", "data": cached.get("data", [])})
         client = await self._get_client()
         if not client:
             return jsonify({"status": "error", "message": "无法获取QQ客户端"})
         try:
             gid = self._safe_int(group_id, 0)
-            result = await client.call_action('get_group_member_list', group_id=gid, no_cache=True)
+            result = await self._call_onebot_web(client, 'get_group_member_list', timeout=10.0, group_id=gid, no_cache=force)
             members = self._extract_list_result(result)
             enriched = []
             admin_set = set(self._get_admin_list())
@@ -879,7 +939,13 @@ class WebMixin:
                 })
             role_order = {"owner": 0, "admin": 1, "member": 2}
             enriched.sort(key=lambda x: (role_order.get(x["role"], 9), x["display_name"]))
+            member_cache[group_id] = {"ts": now, "data": enriched}
+            self._web_member_cache = member_cache
             return jsonify({"status": "success", "data": enriched})
+        except asyncio.TimeoutError:
+            if cached:
+                return jsonify({"status": "success", "data": cached.get("data", []), "stale": True})
+            return jsonify({"status": "error", "message": "获取群成员超时，请稍后重试"})
         except Exception as e:
             return jsonify({"status": "error", "message": f"获取群成员失败: {e}"})
 
@@ -1343,13 +1409,21 @@ class WebMixin:
     _GROUP_CONFIG_EXCLUDE = {
         "disclaimer_agreed", "webui_dark_mode", "prompt_injection_enabled",
         "moderation_llm_provider_id", "ocr_provider_id",
+        "join_accept_keywords", "join_reject_keywords",
+        "auto_unban_scan_interval",
+        "group_admin_grant_enabled", "legacy_role_admin_enabled",
         "group_white_list", "group_black_list", "user_black_list", "user_white_list", "admin_list",
     }
 
     def _group_overridable_keys(self):
-        # 动态计算可按群覆盖的配置项：schema 中除全局项外的全部通用配置（开关/阈值/模板）。
-        # 这样新增配置项会自动纳入多群配置，无需手动维护清单。
-        return [k for k in self._config_schema.keys() if k not in self._GROUP_CONFIG_EXCLUDE]
+        # 动态计算可按群覆盖的配置项：schema 中除全局项外的通用配置。
+        # list 类型通常是全局名单或复杂集合，WebUI 由专门页面维护，不进入单群覆盖。
+        supported_types = {"bool", "int", "string", "text"}
+        return [
+            k for k, meta in self._config_schema.items()
+            if k not in self._GROUP_CONFIG_EXCLUDE
+            and meta.get("type", "bool") in supported_types
+        ]
 
     def _group_config_allowed(self, group_id: str) -> bool:
         # 多群配置仅对白名单群开放：白名单为空时（=全部群启用）允许任意群；非空时仅白名单群可配。
@@ -1375,6 +1449,8 @@ class WebMixin:
                     "key": key,
                     "description": meta.get("description", key),
                     "type": meta.get("type", "bool"),
+                    "hint": meta.get("hint", ""),
+                    "options": meta.get("options", []),
                     "global_value": global_val,
                     "override": overrides.get(key),  # 字符串或 None（None=继承全局）
                 })
@@ -1401,9 +1477,12 @@ class WebMixin:
             if ftype == "bool":
                 value = "true" if self._parse_bool(value, False) else "false"
             elif ftype == "int":
-                value = str(self._safe_int(value, 0))
+                value = str(self._normalize_int_config_value(key, value))
             else:
-                value = str(value)
+                value = "" if value is None else str(value)
+                options = meta.get("options") or []
+                if options and value not in [str(x) for x in options]:
+                    return jsonify({"status": "error", "message": "配置值不在允许选项内"})
             self._storage.set_group_config(group_id, key, value)
             self._invalidate_group_cfg_cache(group_id)
             return jsonify({"status": "success", "group_id": group_id, "key": key, "value": value})

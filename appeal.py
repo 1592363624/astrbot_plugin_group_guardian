@@ -60,12 +60,16 @@ class AppealMixin:
 
     def _has_waiting_appeal(self, user_id: str) -> bool:
         """快速判断某用户是否有 waiting 申诉（私聊 handler 用来决定是否进入裁决）。"""
-        if not self._cfg("appeal_enabled", False) or not user_id:
+        if not user_id:
             return False
         try:
-            return self._storage.get_waiting_appeal(user_id) is not None
+            appeal = self._storage.get_waiting_appeal(user_id)
         except Exception:
             return False
+        if not appeal:
+            return False
+        group_id = str(appeal.get("group_id", ""))
+        return self._cfg("appeal_enabled", False, group_id=group_id)
 
     async def _handle_private_appeal(self, event: AstrMessageEvent):
         """私聊裁决：拉取该用户群内上下文 + LLM 复合审核，给出通过/驳回。
@@ -79,6 +83,9 @@ class AppealMixin:
         appeal = self._storage.get_waiting_appeal(user_id)
         if not appeal:
             return
+        group_id = appeal.get("group_id", "")
+        if not self._cfg("appeal_enabled", False, group_id=group_id):
+            return
         # 过期保护：私聊来得太晚
         if appeal.get("expire_at", 0) and int(time.time()) > appeal["expire_at"]:
             self._storage.set_appeal_status(appeal["id"], "expired", int(time.time()))
@@ -89,9 +96,6 @@ class AppealMixin:
         if not statement:
             yield event.plain_result("请用文字说明你的申诉理由。")
             return
-
-        group_id = appeal.get("group_id", "")
-
         # 并发互斥：原子地把申诉从 waiting 抢占为 judging。用户连发多条私聊时只有第一条
         # 能抢到，后续请求抢不到直接退出，避免重复调用 LLM 复核、重复解禁、重复回复。
         if not self._storage.claim_appeal(appeal["id"], "waiting", "judging"):

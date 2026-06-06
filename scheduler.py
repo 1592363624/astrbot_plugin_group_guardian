@@ -71,15 +71,15 @@ class SchedulerMixin:
 
     async def _run_due_unbans(self) -> None:
         """执行所有到期的定时解禁。"""
-        if not self._cfg("auto_unban_enabled", False):
-            return
         now = int(time.time())
         due = self._storage.list_due_unbans(now)
         if not due:
             return
         for item in due:
-            gid = item.get("group_id", "")
+            gid = str(item.get("group_id", ""))
             uid = item.get("user_id", "")
+            if not self._cfg("auto_unban_enabled", False, group_id=gid):
+                continue
             ok = await self._unban_member(gid, uid)
             # 不论 API 成功与否都删除记录，避免失败项反复重试堆积；失败已在 _unban_member 记日志
             self._storage.delete_scheduled_unban(item.get("id"))
@@ -92,16 +92,17 @@ class SchedulerMixin:
         仅在 auto_unban_enabled 开启时登记。OneBot 自带到期解禁，本功能用于
         永久禁言托管解禁、重启后补解禁等场景。
         """
-        if not self._cfg("auto_unban_enabled", False):
-            return
         if not group_id or not user_id:
+            return
+        group_id = str(group_id)
+        if not self._cfg("auto_unban_enabled", False, group_id=group_id):
             return
         now = int(time.time())
         if mute_seconds and mute_seconds > 0:
             unban_at = now + int(mute_seconds)
         else:
             # 永久禁言：按配置的兜底托管时长（默认 7 天）后解禁
-            fallback = self._clamp_int(self.config.get("auto_unban_permanent_hours", 168), 168, 1, 8760)
+            fallback = self._cfg_int("auto_unban_permanent_hours", 168, group_id=group_id)
             unban_at = now + fallback * 3600
         try:
             self._storage.add_scheduled_unban(group_id, user_id, unban_at, now)

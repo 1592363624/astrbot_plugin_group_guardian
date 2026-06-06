@@ -165,27 +165,49 @@ class UtilitiesMixin:
                 return self._parse_bool_str(gv)
         if key in self._config_schema:
             default = self._config_schema[key].get("default", default)
-        return bool(self.config.get(key, default))
+        value = self.config.get(key, default)
+        if isinstance(value, str) and value.strip() == "":
+            value = default
+        return self._parse_bool_str(value)
 
     def _cfg_int(self, key: str, default: int = 0, group_id: str = None) -> int:
         # 读取整型配置：群覆盖优先，其次全局 config，再次 schema 默认值。
         if group_id:
             gv = self._get_group_override(group_id, key)
             if gv is not None:
-                return self._safe_int(gv, default)
+                value = self._safe_int(gv, default)
+                return self._clamp_cfg_int(key, value)
         if key in self._config_schema:
             default = self._config_schema[key].get("default", default)
-        return self._safe_int(self.config.get(key, default), default)
+        return self._clamp_cfg_int(key, self._safe_int(self.config.get(key, default), default))
+
+    def _clamp_cfg_int(self, key: str, value: int) -> int:
+        ranges_fn = getattr(self, "_config_int_ranges", None)
+        if not callable(ranges_fn):
+            return value
+        lo, hi = ranges_fn().get(key, (None, None))
+        if lo is not None:
+            value = max(lo, value)
+        if hi is not None:
+            value = min(hi, value)
+        return value
 
     def _cfg_str(self, key: str, default: str = "", group_id: str = None) -> str:
         # 读取字符串配置：群覆盖优先，其次全局 config，再次 schema 默认值。
+        options = []
         if group_id:
             gv = self._get_group_override(group_id, key)
             if gv is not None:
-                return str(gv)
+                value = str(gv)
+                meta = self._config_schema.get(key, {})
+                options = [str(x) for x in (meta.get("options") or [])]
+                return value if not options or value in options else str(meta.get("default", default))
         if key in self._config_schema:
-            default = self._config_schema[key].get("default", default)
-        return str(self.config.get(key, default))
+            meta = self._config_schema[key]
+            default = meta.get("default", default)
+            options = [str(x) for x in (meta.get("options") or [])]
+        value = str(self.config.get(key, default))
+        return value if not options or value in options else str(default)
 
     @staticmethod
     def _parse_bool_str(v) -> bool:
@@ -331,21 +353,21 @@ class UtilitiesMixin:
             logger.error(f"[GroupMgr] 加载 SQLite 外置词库失败: {e}")
             return {}
 
-    def _lexicon_switch_map(self) -> Dict[str, bool]:
-        """统一计算各词库分类的启用状态，供编译和增量重建复用。
+    def _lexicon_switch_map(self, group_id: str = None) -> Dict[str, bool]:
+        """统一计算各词库分类的启用状态，供审核阶段过滤复用。
 
         其中 supplement / livelihood / tencent_ban 跟随 other 开关，
-        ad 分类始终启用（由独立的广告规则匹配器控制）。
+        ad 分类始终启用（由独立的广告规则匹配器控制）。传 group_id 时优先使用群覆盖。
         """
-        enable_other = self._cfg("lexicon_other_enabled", True)
+        enable_other = self._cfg("lexicon_other_enabled", True, group_id=group_id)
         return {
-            "political": self._cfg("lexicon_political_enabled", True),
-            "porn": self._cfg("lexicon_porn_enabled", True),
-            "violent_terror": self._cfg("lexicon_violent_enabled", True),
-            "reactionary": self._cfg("lexicon_reactionary_enabled", True),
-            "weapons": self._cfg("lexicon_weapons_enabled", True),
-            "corruption": self._cfg("lexicon_corruption_enabled", True),
-            "illegal_url": self._cfg("lexicon_illegal_url_enabled", True),
+            "political": self._cfg("lexicon_political_enabled", True, group_id=group_id),
+            "porn": self._cfg("lexicon_porn_enabled", True, group_id=group_id),
+            "violent_terror": self._cfg("lexicon_violent_enabled", True, group_id=group_id),
+            "reactionary": self._cfg("lexicon_reactionary_enabled", True, group_id=group_id),
+            "weapons": self._cfg("lexicon_weapons_enabled", True, group_id=group_id),
+            "corruption": self._cfg("lexicon_corruption_enabled", True, group_id=group_id),
+            "illegal_url": self._cfg("lexicon_illegal_url_enabled", True, group_id=group_id),
             "other": enable_other,
             "supplement": enable_other,
             "livelihood": enable_other,
@@ -374,12 +396,12 @@ class UtilitiesMixin:
         return raw_parts
 
     def _compile_lexicon(self) -> Dict[str, "KeywordAutomaton"]:
-        """全量编译所有启用分类的词库为 AC 自动机。"""
-        switch_map = self._lexicon_switch_map()
+        """全量编译所有分类的词库为 AC 自动机。
+
+        分类开关在审核阶段过滤，而不是编译阶段过滤；否则全局关闭的分类无法被单群覆盖重新启用。
+        """
         compiled = {}
         for cat_name, cat_data in self._lexicon.items():
-            if not switch_map.get(cat_name, True):
-                continue
             ac = self._build_category_automaton(cat_name, cat_data)
             if ac.count:
                 compiled[cat_name] = ac

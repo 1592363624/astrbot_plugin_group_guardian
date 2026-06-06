@@ -76,6 +76,9 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
         self._admin_role_cache_ttl = 10.0
         # 当日统计缓存，reset 键是 today_start 时间戳，跨日自动清零
         self._stats_cache = {"today_start": 0, "blocked": 0, "passed": 0, "total": 0, "group_stats": {}, "user_stats": {}}
+        # WebUI 慢接口缓存：群列表/成员列表依赖 OneBot API，短 TTL 避免页面切换时反复阻塞。
+        self._web_group_cache = {"ts": 0.0, "data": []}
+        self._web_member_cache = {}
         # LLM 并发信号量：同一时刻最多 5 个 LLM 请求，防止所有 provider 被填满
         self._llm_semaphore = asyncio.Semaphore(5)
         # 防刷屏追踪数据结构
@@ -129,8 +132,9 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
             "description": cat.get("description", ""),
             "keywords": cat.get("keywords", []),
         }
-        if self._lexicon_category_enabled(category):
-            self._compiled_lexicon[category] = self._compile_lexicon_category(category, self._lexicon[category])
+        ac = self._compile_lexicon_category(category, self._lexicon[category])
+        if ac.count:
+            self._compiled_lexicon[category] = ac
         else:
             self._compiled_lexicon.pop(category, None)
 

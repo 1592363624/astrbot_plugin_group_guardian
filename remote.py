@@ -121,13 +121,18 @@ class RemoteMixin:
         if not meta:
             return {"ok": False, "message": f"未知操作: {action}"}
         cfg_key, cn_name, need_user = meta
-        # 三级检查：插件总开关 + 免责声明 + 该功能开关
-        ok, msg = self._cfg_check(cfg_key, cn_name)
-        if not ok:
-            return {"ok": False, "message": msg}
         gid = self._safe_int(group_id, 0)
         if not gid:
             return {"ok": False, "message": "群号无效"}
+        gid_str = str(gid)
+        if self._group_black_set and gid_str in self._group_black_set:
+            return {"ok": False, "message": f"群 {gid_str} 在黑名单中"}
+        if self._group_white_set and gid_str not in self._group_white_set:
+            return {"ok": False, "message": f"群 {gid_str} 不在白名单中"}
+        # 三级检查：插件总开关 + 免责声明 + 该功能开关，按目标群读取独立配置。
+        ok, msg = self._cfg_check(cfg_key, cn_name, group_id=gid_str)
+        if not ok:
+            return {"ok": False, "message": msg}
         client = await self._get_client(None)
         if not client:
             return {"ok": False, "message": "无法获取 QQ 客户端，请确保已连接"}

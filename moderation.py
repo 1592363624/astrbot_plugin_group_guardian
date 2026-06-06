@@ -729,7 +729,7 @@ class ModerationMixin:
             return True
         return False
 
-    async def _ocr_images(self, event: AiocqhttpMessageEvent, image_urls: list) -> str:
+    async def _ocr_images(self, event: AiocqhttpMessageEvent, image_urls: list, group_id: str = "") -> str:
         # 对图片列表逐一执行 OCR 识别（上限 3 张，避免 token 消耗过大）。
         # 对每张图片调用 _call_llm_ocr，在其返回前附加 gif/表情包 的前缀标记，
         # 方便 LLM 审核心 `_call_llm_for_moderation` 中的 prompt 理解上下文。
@@ -741,7 +741,7 @@ class ModerationMixin:
             try:
                 is_gif = self._is_gif_url(img_url)
                 is_sticker = self._is_sticker_image(img_url)
-                ocr_text = await self._call_llm_ocr(img_url, is_gif=is_gif, is_sticker=is_sticker)
+                ocr_text = await self._call_llm_ocr(img_url, is_gif=is_gif, is_sticker=is_sticker, group_id=group_id)
                 if ocr_text and ocr_text.strip():
                     prefix = ""
                     if is_gif:
@@ -753,7 +753,7 @@ class ModerationMixin:
                 logger.debug(f"[GroupMgr] OCR识别失败: {e}")
         return '\n'.join(all_ocr_texts)
 
-    async def _call_llm_ocr(self, image_url: str, is_gif: bool = False, is_sticker: bool = False) -> str:
+    async def _call_llm_ocr(self, image_url: str, is_gif: bool = False, is_sticker: bool = False, group_id: str = "") -> str:
         # 调用 LLM 的视觉能力对单张图片进行 OCR 识别。
         # 视觉识别需要 LLM Provider 支持多模态（如 GPT-4V、Qwen-VL 等），
         # 用户需要在配置中指定 ocr_provider_id 并确保该 Model/Provider 支持 image_urls 参数。
@@ -771,9 +771,9 @@ class ModerationMixin:
 
         # 优先使用用户自定义的提示词（ocr_custom_system_prompt + ocr_custom_user_prompt），
         # 若未设置则从预置模板 _OCR_PROMPT_TEMPLATES 中根据 ocr_prompt_template 配置项选取。
-        template_key = str(self.config.get("ocr_prompt_template", "default")).strip()
-        custom_system = str(self.config.get("ocr_custom_system_prompt", "")).strip()
-        custom_user = str(self.config.get("ocr_custom_user_prompt", "")).strip()
+        template_key = self._cfg_str("ocr_prompt_template", "default", group_id=group_id).strip()
+        custom_system = self._cfg_str("ocr_custom_system_prompt", "", group_id=group_id).strip()
+        custom_user = self._cfg_str("ocr_custom_user_prompt", "", group_id=group_id).strip()
 
         if custom_system and custom_user:
             system_prompt = custom_system
@@ -913,7 +913,7 @@ class ModerationMixin:
                     self._mark_moderation_penalty(group_id, user_id, 60)
                     await self._kick_member(event)
                     await self._mute_member(event, 60)
-                    notice = self.config.get("ban_notice", "[群管] {name}({uid}) 已被踢出（黑名单）")
+                    notice = self._cfg_str("ban_notice", "[群管] {name}({uid}) 已被踢出（黑名单）", group_id=group_id)
                     yield event.plain_result(notice.replace("{name}", user_name).replace("{uid}", user_id).replace("{group}", group_id))
                     event.stop_event()
                 except Exception as e:
@@ -1009,7 +1009,7 @@ class ModerationMixin:
                 ocr_urls = [u for u in image_urls if not self._is_sticker_image(u)]
             if ocr_urls:
                 logger.info(f"[GroupMgr] OCR开始识别 {len(ocr_urls)} 张图片")
-                ocr_text = await self._ocr_images(event, ocr_urls)
+                ocr_text = await self._ocr_images(event, ocr_urls, group_id=group_id)
                 if ocr_text:
                     if text:
                         text = text + '\n[OCR识图内容]\n' + ocr_text
@@ -1039,6 +1039,9 @@ class ModerationMixin:
             "corruption": False,
             "illegal_url": False,
             "other": False,
+            "supplement": False,
+            "livelihood": False,
+            "tencent_ban": False,
         }
 
         swear_hit = False
@@ -1053,18 +1056,10 @@ class ModerationMixin:
 
         lexicon_result = self._check_lexicon(text)
         # 词库分类命中按群过滤：某群关闭了对应分类开关时，忽略该分类命中（实现按群词库开关）
-        _lex_keymap = {
-            "political": "lexicon_political_enabled", "porn": "lexicon_porn_enabled",
-            "violent_terror": "lexicon_violent_enabled", "reactionary": "lexicon_reactionary_enabled",
-            "weapons": "lexicon_weapons_enabled", "corruption": "lexicon_corruption_enabled",
-            "illegal_url": "lexicon_illegal_url_enabled",
-            "other": "lexicon_other_enabled", "supplement": "lexicon_other_enabled",
-            "livelihood": "lexicon_other_enabled", "tencent_ban": "lexicon_other_enabled",
-        }
+        switch_map = self._lexicon_switch_map(group_id=group_id)
         for cat, hit in lexicon_result.items():
             if cat in hit_types and hit:
-                cfg_key = _lex_keymap.get(cat)
-                if cfg_key and not self._cfg(cfg_key, True, group_id=group_id):
+                if not switch_map.get(cat, True):
                     continue  # 该群已关闭此词库分类
                 hit_types[cat] = True
 
@@ -1088,10 +1083,11 @@ class ModerationMixin:
                     self._log_moderation(group_id, user_id, user_name, text, "撤回", reason, image_urls)
                     event.stop_event()
                     return
-                self._mark_moderation_penalty(group_id, user_id, self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800))
+                ban_duration = self._cfg_int("moderation_ban_duration", 1800, group_id=group_id)
+                self._mark_moderation_penalty(group_id, user_id, ban_duration)
                 await self._mute_member(event)
-                self._schedule_unban(group_id, user_id, self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800))
-                notice = self.config.get("ban_notice", "[群管] {name}({uid}) 已被禁言（触发规则）")
+                self._schedule_unban(group_id, user_id, ban_duration)
+                notice = self._cfg_str("ban_notice", "[群管] {name}({uid}) 已被禁言（触发规则）", group_id=group_id)
                 yield event.plain_result(notice.replace("{name}", user_name).replace("{uid}", user_id).replace("{group}", group_id))
                 self._log_moderation(group_id, user_id, user_name, text, "撤回+禁言", reason, image_urls)
                 event.stop_event()
@@ -1131,18 +1127,19 @@ class ModerationMixin:
                 self._log_moderation(group_id, user_id, user_name, text, "LLM撤回", reason, image_urls)
                 event.stop_event()
                 return
-            self._mark_moderation_penalty(group_id, user_id, self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800))
+            ban_duration = self._cfg_int("moderation_ban_duration", 1800, group_id=group_id)
+            self._mark_moderation_penalty(group_id, user_id, ban_duration)
 
             if self._cfg("llm_moderation_ban", True, group_id=group_id):
                 try:
                     await self._mute_member(event)
-                    self._schedule_unban(group_id, user_id, self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800))
+                    self._schedule_unban(group_id, user_id, ban_duration)
                 except Exception as ban_err:
                     logger.warning(f"[GroupMgr] 禁言失败: {ban_err}")
 
             if self._cfg("auto_moderate_notice", True, group_id=group_id):
                 try:
-                    notice = self.config.get("ban_notice", "[群管] {name}({uid}) 的消息已被撤回（违规内容）")
+                    notice = self._cfg_str("ban_notice", "[群管] {name}({uid}) 的消息已被撤回（违规内容）", group_id=group_id)
                     yield event.plain_result(notice.replace("{name}", user_name).replace("{uid}", user_id).replace("{group}", group_id))
                 except Exception as notice_err:
                     logger.warning(f"[GroupMgr] 发送通知失败: {notice_err}")

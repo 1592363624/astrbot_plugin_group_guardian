@@ -419,7 +419,7 @@ class OneBotMixin:
         uid = self._safe_int(user_id, 0)
         if not gid or not uid:
             return
-        ban_duration = duration if duration is not None else self._safe_int(self.config.get("moderation_ban_duration", 1800), 1800)
+        ban_duration = duration if duration is not None else self._cfg_int("moderation_ban_duration", 1800, group_id=group_id)
         try:
             await client.call_action('set_group_ban', group_id=gid, user_id=uid, duration=ban_duration)
         except Exception as e:

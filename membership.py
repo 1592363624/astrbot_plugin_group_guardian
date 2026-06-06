@@ -42,14 +42,14 @@ class MembershipMixin:
                 rule = self._storage.get_join_audit_rule("default")
         except Exception as e:
             logger.debug(f"[GroupMgr] 读取入群规则失败: {e}")
-        if rule and rule.get("enabled"):
+        if rule is not None:
             return rule
         # 回退全局配置
         return {
             "accept_keywords": self.config.get("join_accept_keywords", []) or [],
             "reject_keywords": self.config.get("join_reject_keywords", []) or [],
-            "default_action": str(self.config.get("join_default_action", "manual") or "manual"),
-            "reject_reason": str(self.config.get("join_reject_reason", "") or ""),
+            "default_action": self._cfg_str("join_default_action", "manual", group_id=group_id) or "manual",
+            "reject_reason": self._cfg_str("join_reject_reason", "", group_id=group_id),
             "enabled": True,
         }
 
@@ -81,6 +81,8 @@ class MembershipMixin:
             return
 
         rule = self._resolve_join_rule(group_id)
+        if not rule.get("enabled", True):
+            return
         comment_lower = comment.lower()
 
         # ① 拒绝词
@@ -94,8 +96,10 @@ class MembershipMixin:
         # ② 违禁词库（可选）
         if self._cfg("join_reject_use_lexicon", True, group_id=group_id) and comment:
             lex_hit = self._check_lexicon(comment)
+            switch_map = self._lexicon_switch_map(group_id=group_id)
+            lex_blocked = any(hit and switch_map.get(cat, True) for cat, hit in lex_hit.items())
             ad_hit = self._is_ad_pattern(comment) if hasattr(self, "_is_ad_pattern") else False
-            if any(lex_hit.values()) or ad_hit:
+            if lex_blocked or ad_hit:
                 reason = rule.get("reject_reason", "") or "申请信息含违规内容"
                 await self._process_group_request(event, flag, sub_type, False, reason)
                 self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群拒绝", "命中违禁词库/广告", [])

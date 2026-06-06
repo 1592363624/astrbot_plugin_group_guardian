@@ -134,9 +134,6 @@ class AntiFloodMixin:
         sec_limit = self._get_rate_limit("anti_flood_rate_per_second", 5, group_id=group_id)
         min_limit = self._get_rate_limit("anti_flood_rate_per_minute", 20, group_id=group_id)
         hour_limit = self._get_rate_limit("anti_flood_rate_per_hour", 60, group_id=group_id)
-        if sec_limit <= 0 and min_limit <= 0 and hour_limit <= 0:
-            return False, None
-
         sec_count = 0
         min_count = 0
         hour_count = 0
