@@ -16,6 +16,7 @@
 import json
 import re
 import time
+from typing import Tuple
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
@@ -73,6 +74,38 @@ class AppealMixin:
             return False
         group_id = str(appeal.get("group_id", ""))
         return self._cfg("appeal_enabled", False, group_id=group_id)
+
+    def _is_user_private_message_event(self, event: AstrMessageEvent) -> bool:
+        """只允许真实用户私聊消息进入申诉流程，忽略 notice/request/meta 等非消息事件。"""
+        raw = self._get_private_raw_event(event)
+        if isinstance(raw, dict):
+            post_type = raw.get("post_type")
+            message_type = raw.get("message_type")
+            if post_type is not None and post_type != "message":
+                return False
+            if message_type is not None and message_type != "private":
+                return False
+            if post_type == "message" or message_type == "private":
+                return True
+
+        try:
+            if event.get_messages():
+                return True
+        except Exception:
+            pass
+        msg_obj = getattr(event, "message_obj", None)
+        if getattr(msg_obj, "message", None) is not None:
+            return True
+        return bool((getattr(event, "message_str", "") or "").strip())
+
+    @staticmethod
+    def _get_private_raw_event(event: AstrMessageEvent):
+        raw = getattr(event, "raw_event", None)
+        if isinstance(raw, dict):
+            return raw
+        msg_obj = getattr(event, "message_obj", None)
+        raw = getattr(msg_obj, "raw_message", None) if msg_obj else None
+        return raw if isinstance(raw, dict) else None
 
     async def _handle_private_appeal(self, event: AstrMessageEvent):
         """私聊裁决：拉取该用户群内上下文 + LLM 复合审核，给出通过/驳回。
@@ -163,42 +196,83 @@ class AppealMixin:
         部分 aiocqhttp/AstrBot 版本的私聊事件会让 event.message_str 为空，但文本仍在
         message chain 或 raw_message/message_obj.message 里。申诉只接受文字，因此这里做多路兜底。
         """
-        text = (getattr(event, "message_str", "") or "").strip()
-        if text:
-            return text
-
+        structured_seen = False
         parts = []
         try:
             chain = event.get_messages() or []
         except Exception:
             chain = []
-        for seg in chain:
-            if isinstance(seg, dict):
-                seg_type = seg.get("type", "")
-                data = seg.get("data", {}) or {}
-                if seg_type == "text":
-                    parts.append(str(data.get("text", "") or ""))
-                continue
-            if hasattr(seg, "text"):
-                parts.append(str(getattr(seg, "text", "") or ""))
+        seen, text = self._extract_text_from_payload(chain)
+        structured_seen = structured_seen or seen
+        if text:
+            parts.append(text)
 
         if not parts:
             raw_message = getattr(getattr(event, "message_obj", None), "message", None)
             if raw_message is not None:
-                parts.append(self._format_message_content(raw_message))
+                seen, text = self._extract_text_from_payload(raw_message)
+                structured_seen = structured_seen or seen
+                if text:
+                    parts.append(text)
 
         if not parts:
             raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
-            if isinstance(raw, dict):
-                msg = raw.get("message")
-                if msg is not None:
-                    parts.append(self._format_message_content(msg))
-                else:
-                    parts.append(str(raw.get("raw_message", "") or ""))
-            elif raw:
-                parts.append(str(raw))
+            seen, text = self._extract_text_from_payload(raw)
+            structured_seen = structured_seen or seen
+            if text:
+                parts.append(text)
 
-        return "".join(parts).strip()
+        statement = "".join(parts).strip()
+        if statement:
+            return statement
+        if structured_seen:
+            return ""
+        return self._clean_private_text(getattr(event, "message_str", "") or "")
+
+    @classmethod
+    def _extract_text_from_payload(cls, payload) -> Tuple[bool, str]:
+        """只提取 OneBot/AstrBot 消息里的文字段，非文字段不算申诉内容。"""
+        if payload is None:
+            return False, ""
+        if isinstance(payload, list):
+            if not payload:
+                return False, ""
+            parts = []
+            seen = True
+            for seg in payload:
+                seg_seen, text = cls._extract_text_from_payload(seg)
+                seen = seen or seg_seen
+                if text:
+                    parts.append(text)
+            return seen, "".join(parts).strip()
+        if isinstance(payload, dict):
+            seg_type = payload.get("type")
+            if seg_type:
+                if seg_type == "text":
+                    data = payload.get("data", {}) or {}
+                    return True, cls._clean_private_text(data.get("text", ""))
+                return True, ""
+            if "message" in payload:
+                return cls._extract_text_from_payload(payload.get("message"))
+            if "raw_message" in payload:
+                raw_message = payload.get("raw_message", "")
+                return bool(raw_message), cls._clean_private_text(raw_message)
+            return False, ""
+        if hasattr(payload, "text"):
+            return True, cls._clean_private_text(getattr(payload, "text", ""))
+        if isinstance(payload, str):
+            return True, cls._clean_private_text(payload)
+        return False, ""
+
+    @staticmethod
+    def _clean_private_text(text: str) -> str:
+        text = str(text or "")
+        text = re.sub(r"\[CQ:[^\]]+\]", "", text).strip()
+        placeholders = {
+            "[空消息]", "[图片]", "[语音]", "[视频]", "[表情]", "[戳一戳]",
+            "[合并转发消息]", "[文件]", "[商城表情]",
+        }
+        return "" if text in placeholders else text
 
     async def _judge_appeal(self, group_id: str, user_id: str, statement: str, appeal: dict) -> dict:
         """LLM 复合审核：结合申诉理由 + 群内上下文 + 原处罚，返回 {appeal_valid, reason}。"""

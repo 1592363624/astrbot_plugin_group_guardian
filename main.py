@@ -594,6 +594,8 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def _on_private_appeal(self, event: AiocqhttpMessageEvent):
+        if not self._is_user_private_message_event(event):
+            return
         user_id = self._try_get_sender_id(event)
         if not self._has_waiting_appeal(user_id):
             return
