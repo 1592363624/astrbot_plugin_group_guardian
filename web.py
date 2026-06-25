@@ -39,7 +39,7 @@ class WebMixin:
         return _wrapped
 
     def _apply_incremental_rule_rebuild(self, category: str) -> Tuple[bool, str]:
-        """尝试立即重建规则匹配器，失败时调度后台全量重建。"""
+        self._rule_count_cache = None
         try:
             self._rebuild_rule_matcher(category)
             self._schedule_background_rebuild(f"规则分类 {category} 后台校验重建")
@@ -304,8 +304,17 @@ class WebMixin:
                     elif "放行" in action:
                         today_passed += 1
             sc.update(today_start=today_start, blocked=today_blocked, passed=today_passed, total=today_total)
-        swear_count = self._swear_matcher.ac_count + self._swear_matcher.regex_count if hasattr(self, '_swear_matcher') else 0
-        ad_count = self._ad_matcher.ac_count + self._ad_matcher.regex_count if hasattr(self, '_ad_matcher') else 0
+        rc = getattr(self, "_rule_count_cache", None)
+        now = time.time()
+        if not rc or now - rc.get("ts", 0) > 30:
+            rc = {
+                "ts": now,
+                "swear": self._storage.count_moderation_rules_filtered("swear", 1),
+                "ad": self._storage.count_moderation_rules_filtered("ad", 1),
+            }
+            self._rule_count_cache = rc
+        swear_count = rc["swear"]
+        ad_count = rc["ad"]
         stats = {
             "plugin_name": PLUGIN_NAME,
             "version": PLUGIN_VERSION,
