@@ -20,6 +20,12 @@
 - **日志预览扩展**: `msg_preview` 从 100 字符扩展到 200 字符，WebUI 审核日志列表展示更完整
 - **代码重构**: `_is_admin` / `_is_plugin_admin` 提取公共方法 `_get_all_admin_ids()` / `_is_group_admin_blocked()`，消除重复代码
 
+### 新功能
+
+- **指令支持 @某人**: `/禁言`、`/解禁`、`/踢人`、`/设置名片` 现在支持 @某人 而非仅限手动输入 QQ 号（Issue #8, PR #9）
+- **入群审核群内通知**: 自动审核通过/拒绝后在群内发送通知，新增 `join_audit_notify` 配置开关（Issue #12）
+- **入群审核不再吞没事件**: `_on_group_request` 仅在实际处理了申请时才 `stop_event()`，未启用审核时不阻断其他插件
+
 ### WebUI 优化
 
 - **统计面板增强**: `_web_stats` 不再每次查库计算规则数量，改用内存匹配器属性；新增 `configured_groups_count`、`super_admin_count` 字段

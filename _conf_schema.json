@@ -474,6 +474,12 @@
         "default": false,
         "hint": "开启后自动处理加群申请：命中拒绝词/违禁词库则拒绝，命中通过词则通过，其余按默认动作"
     },
+    "join_audit_notify": {
+        "description": "入群审核结果群内通知",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后自动审核通过/拒绝时在群内发送通知消息"
+    },
     "join_accept_keywords": {
         "description": "入群-自动通过关键词",
         "type": "list",

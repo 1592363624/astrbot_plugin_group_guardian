@@ -235,19 +235,19 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
 
     @filter.command("禁言")
     async def cmd_ban(self, event: AstrMessageEvent):
-        '''禁言指定群成员。用法: /禁言 <QQ号> <秒数>'''
+        '''禁言指定群成员。用法: /禁言 <QQ号或@某人> <秒数>'''
         async for item in CommandsMixin.cmd_ban(self, event):
             yield item
 
     @filter.command("解禁")
     async def cmd_unban(self, event: AstrMessageEvent):
-        '''解除指定群成员禁言。用法: /解禁 <QQ号>'''
+        '''解除指定群成员禁言。用法: /解禁 <QQ号或@某人>'''
         async for item in CommandsMixin.cmd_unban(self, event):
             yield item
 
     @filter.command("踢人")
     async def cmd_kick(self, event: AstrMessageEvent):
-        '''将成员移出群聊。用法: /踢人 <QQ号>'''
+        '''将成员移出群聊。用法: /踢人 <QQ号或@某人>'''
         async for item in CommandsMixin.cmd_kick(self, event):
             yield item
 
@@ -259,7 +259,7 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
 
     @filter.command("设置名片")
     async def cmd_set_card(self, event: AstrMessageEvent):
-        '''修改成员群名片。用法: /设置名片 <QQ号> <新名称>'''
+        '''修改成员群名片。用法: /设置名片 <QQ号或@某人> <新名称>'''
         async for item in CommandsMixin.cmd_set_card(self, event):
             yield item
 
@@ -568,10 +568,11 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
         if not self._is_group_request_event(event):
             return
         try:
-            await MembershipMixin._handle_group_request(self, event)
+            handled = await MembershipMixin._handle_group_request(self, event)
+            if handled:
+                event.stop_event()
         except Exception as e:
             logger.warning(f"[GroupMgr] 入群审核出错: {e}")
-        event.stop_event()
 
     # F2 私聊申诉裁决：私聊消息且发送者有 waiting 申诉时进入。
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
