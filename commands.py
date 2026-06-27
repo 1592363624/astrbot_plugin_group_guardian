@@ -250,7 +250,7 @@ class CommandsMixin:
             return
         try:
             user_id = at_targets[0] if at_targets else str(args[1]).strip()
-            duration = min(max(self._safe_int(args[2], 600) if len(args) > 2 else 600, 60), 2592000)
+            duration = min(max(self._safe_int(args[2], 600) if len(args) > 2 else 600, 1), 2592000)
             ok, err, client, gid, uid = await self._prepare_group_member_action(event, "ban_enabled", "禁言", user_id, precheck_action="ban")
             if not ok:
                 yield event.plain_result(err)
