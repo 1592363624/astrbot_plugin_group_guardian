@@ -12,34 +12,6 @@ class CommandsMixin:
     # 每个 handler 的第一步都是调用 _check_admin_cfg_access 或 _cfg_check 做功能开关 + 权限校验。
     # 需要调用 QQ API 时通过 _get_group_client 获取客户端，它在 main.py 初始化时注入。
 
-    def _extract_at_targets(self, event: AstrMessageEvent) -> list:
-        """从消息链提取所有被 @ 的 QQ 号（按出现顺序，去重，排除 @全体）。
-
-        兼容 dict 段格式与对象段格式；@全体（qq='all'/0）会被忽略。
-        """
-        targets = []
-        seen = set()
-        try:
-            chain = event.get_messages() or []
-        except Exception:
-            chain = []
-        for seg in chain:
-            qq = None
-            if isinstance(seg, dict):
-                if seg.get("type") == "at":
-                    qq = (seg.get("data", {}) or {}).get("qq", "")
-            else:
-                seg_cls = type(seg).__name__
-                if seg_cls == "At" or (hasattr(seg, "type") and getattr(seg, "type", "") == "at"):
-                    qq = getattr(seg, "qq", "") or ""
-            qq = str(qq).strip()
-            if not qq or qq.lower() in ("all", "0"):
-                continue
-            if qq not in seen and qq.isdigit():
-                seen.add(qq)
-                targets.append(qq)
-        return targets
-
     async def word_count(self, event: AstrMessageEvent):
         '''统计群内关键词出现次数'''
         # 拆分命令参数：/字数统计 <关键词> [天数] [类型]
