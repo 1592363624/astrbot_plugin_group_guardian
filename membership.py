@@ -113,19 +113,24 @@ class MembershipMixin:
                 return True
 
         # QQ等级自动审核：根据配置的最低等级要求自动通过或拒绝
+        # 注意：get_stranger_info 对非好友陌生人通常返回 level=0（无法获取真实等级），
+        # 因此等级为 0 时视为"未知"，跳过等级检查走默认动作，避免误拒。
         if self._cfg("join_qq_level_check_enabled", False, group_id=group_id):
             min_level = self._cfg_int("join_qq_level_min", 0, group_id=group_id)
             if min_level > 0:
                 # 获取申请人QQ等级
-                _, qq_level = await self._get_user_info(user_id)
-                if qq_level >= min_level:
+                nickname, qq_level = await self._get_user_info(user_id)
+                if qq_level == 0:
+                    # 等级未知（陌生人API通常返回0），跳过等级检查，走默认动作
+                    logger.debug(f"[GroupMgr] QQ等级获取为0（未知），跳过等级检查: {user_id}")
+                elif qq_level >= min_level:
                     # 等级达标，自动通过
                     await self._process_group_request(event, flag, sub_type, True, "")
                     self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群通过", f"QQ等级达标({qq_level}>={min_level})", [])
                     await self._notify_join_audit(group_id, user_id, comment, True, f"QQ等级{qq_level}>=要求{min_level}")
                     return True
                 else:
-                    # 等级不足，自动拒绝
+                    # 等级确实不足（获取到了非零值但低于阈值），自动拒绝
                     reason = rule.get("reject_reason", "") or f"QQ等级不足(需要{min_level}级)"
                     await self._process_group_request(event, flag, sub_type, False, reason)
                     self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群拒绝", f"QQ等级不足({qq_level}<{min_level})", [])
