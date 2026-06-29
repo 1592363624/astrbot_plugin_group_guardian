@@ -12,34 +12,6 @@ class CommandsMixin:
     # 每个 handler 的第一步都是调用 _check_admin_cfg_access 或 _cfg_check 做功能开关 + 权限校验。
     # 需要调用 QQ API 时通过 _get_group_client 获取客户端，它在 main.py 初始化时注入。
 
-    def _extract_at_targets(self, event: AstrMessageEvent) -> list:
-        """从消息链提取所有被 @ 的 QQ 号（按出现顺序，去重，排除 @全体）。
-
-        兼容 dict 段格式与对象段格式；@全体（qq='all'/0）会被忽略。
-        """
-        targets = []
-        seen = set()
-        try:
-            chain = event.get_messages() or []
-        except Exception:
-            chain = []
-        for seg in chain:
-            qq = None
-            if isinstance(seg, dict):
-                if seg.get("type") == "at":
-                    qq = (seg.get("data", {}) or {}).get("qq", "")
-            else:
-                seg_cls = type(seg).__name__
-                if seg_cls == "At" or (hasattr(seg, "type") and getattr(seg, "type", "") == "at"):
-                    qq = getattr(seg, "qq", "") or ""
-            qq = str(qq).strip()
-            if not qq or qq.lower() in ("all", "0"):
-                continue
-            if qq not in seen and qq.isdigit():
-                seen.add(qq)
-                targets.append(qq)
-        return targets
-
     async def word_count(self, event: AstrMessageEvent):
         '''统计群内关键词出现次数'''
         # 拆分命令参数：/字数统计 <关键词> [天数] [类型]
@@ -301,11 +273,37 @@ class CommandsMixin:
                 yield event.plain_result(err)
                 return
             # set_group_kick: OneBot 踢人 API，调用前 _check_admin_cfg_access 已确保操作者有权限
+            recalled = 0
+            group_id = str(gid)
+            if self._cfg("kick_recall_enabled", False, group_id=group_id):
+                recall_count = min(max(self._cfg_int("kick_recall_count", 10, group_id=group_id), 1), 50)
+                try:
+                    result = await client.call_action('get_group_msg_history', group_id=gid, count=100)
+                    result = self._extract_data_result(result)
+                    msgs = result.get('messages', []) if isinstance(result, dict) else []
+                    for msg in msgs:
+                        if recalled >= recall_count:
+                            break
+                        sender = msg.get('sender') or {}
+                        if str(sender.get('user_id', '')) == str(user_id):
+                            mid = msg.get('message_id')
+                            if mid:
+                                try:
+                                    await client.call_action('delete_msg', message_id=mid)
+                                    recalled += 1
+                                    await asyncio.sleep(0.3)
+                                except Exception:
+                                    pass
+                except Exception as e:
+                    logger.debug(f"[GroupMgr] 踢人撤回消息失败: {e}")
             ok, err = await self._call_group_api(client, 'set_group_kick', "踢人", group_id=gid, user_id=uid)
             if not ok:
                 yield event.plain_result(f"踢人失败: {err}")
                 return
-            yield event.plain_result(f"已将 {user_id} 踢出群聊")
+            msg = f"已将 {user_id} 踢出群聊"
+            if recalled > 0:
+                msg += f"，已撤回 {recalled} 条消息"
+            yield event.plain_result(msg)
         except Exception as e:
             yield event.plain_result(f"踢人失败: {e}")
 
