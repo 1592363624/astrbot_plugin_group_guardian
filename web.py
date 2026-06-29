@@ -234,6 +234,7 @@ class WebMixin:
                 ("/whitelist/remove", self._web_whitelist_remove, ["POST"], "移除群白名单"),
                 ("/blacklist/add", self._web_blacklist_add, ["POST"], "添加群黑名单"),
                 ("/blacklist/remove", self._web_blacklist_remove, ["POST"], "移除群黑名单"),
+                ("/leave_group", self._web_leave_group, ["POST"], "机器人退群"),
                 ("/user_blacklist/add", self._web_user_blacklist_add, ["POST"], "添加用户黑名单"),
                 ("/user_blacklist/remove", self._web_user_blacklist_remove, ["POST"], "移除用户黑名单"),
                 ("/user_whitelist/add", self._web_user_whitelist_add, ["POST"], "添加审核白名单用户"),
@@ -1135,6 +1136,31 @@ class WebMixin:
             return jsonify({"status": "success", "group_id": group_id, "black_list": self.group_black_list})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_leave_group(self):
+        """退群操作：调用 OneBot set_group_leave 让机器人退出指定群聊。
+
+        需要二次确认（前端弹窗），后端再次校验 group_id 合法性。
+        退群后自动从白名单/黑名单中移除该群。
+        """
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            group_id = str(data.get("group_id", "")).strip()
+            if not group_id:
+                return jsonify({"status": "error", "message": "缺少 group_id"})
+            client = await self._get_client()
+            if not client:
+                return jsonify({"status": "error", "message": "无法获取QQ客户端"})
+            gid = self._safe_int(group_id, 0)
+            if not gid:
+                return jsonify({"status": "error", "message": "群号格式无效"})
+            await asyncio.wait_for(client.call_action('set_group_leave', group_id=gid), timeout=10.0)
+            # 退群后清理白名单/黑名单
+            self._managed_list_remove("group_white", group_id)
+            self._managed_list_remove("group_black", group_id)
+            return jsonify({"status": "success", "group_id": group_id, "message": f"已退出群 {group_id}"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"退群失败: {self._format_web_error(e)}"})
 
     async def _web_user_blacklist_add(self):
         try:

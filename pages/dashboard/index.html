@@ -1323,6 +1323,7 @@ function renderGroups(groups) {
       '<div class="group-actions">' +
         (g.is_white ? '<button class="btn btn-outline btn-sm" data-action="remove-white" data-gid="' + escAttr(g.group_id) + '">移出白名单</button>' : '<button class="btn btn-primary btn-sm" data-action="add-white" data-gid="' + escAttr(g.group_id) + '">加入白名单</button>') +
         (g.is_black ? '<button class="btn btn-outline btn-sm" data-action="remove-black" data-gid="' + escAttr(g.group_id) + '">移出黑名单</button>' : '<button class="btn btn-danger btn-sm" data-action="add-black" data-gid="' + escAttr(g.group_id) + '">加入黑名单</button>') +
+        '<button class="btn btn-danger btn-sm" data-action="leave-group" data-gid="' + escAttr(g.group_id) + '" title="退出该群">退群</button>' +
       '</div></div>';
   }).join('');
 
@@ -1354,6 +1355,15 @@ function renderGroups(groups) {
         okAction = await postOrToast('blacklist/add', { group_id: gid }, '已加入黑名单', '加入黑名单失败', 'danger');
       }
       else if (action === 'remove-black') okAction = await postOrToast('blacklist/remove', { group_id: gid }, '已移出黑名单', '移出黑名单失败');
+      else if (action === 'leave-group') {
+        // 第一次确认
+        var ok1 = await confirmModal({ title: '退群确认', body: '确认让机器人退出群 <b>' + esc(gid) + '</b> ？<br>退群后机器人将不再接收该群消息，且无法自动重新加入。', okText: '继续', danger: true });
+        if (!ok1) return;
+        // 第二次确认（防止误操作）
+        var ok2 = await confirmModal({ title: '再次确认', body: '这是高危操作！<br>机器人将永久退出群 <b>' + esc(gid) + '</b>，确定要执行吗？', okText: '确定退群', danger: true });
+        if (!ok2) return;
+        okAction = await postOrToast('leave_group', { group_id: gid }, '已退出群 ' + gid, '退群失败', 'danger');
+      }
       if (okAction) loadGroups(true);
     });
   });
