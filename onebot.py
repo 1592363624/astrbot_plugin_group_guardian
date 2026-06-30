@@ -91,6 +91,22 @@ class OneBotMixin:
                 pass
         return ""
 
+    def _try_get_sender_nickname(self, event: AstrMessageEvent) -> str:
+        """尝试从事件中获取发送者的昵称。"""
+        for getter in [
+            lambda: str(event.get_sender_name()) if hasattr(event, 'get_sender_name') and event.get_sender_name() else None,
+            lambda: str(event.sender.nickname) if hasattr(event, 'sender') and hasattr(event.sender, 'nickname') and event.sender.nickname else None,
+            lambda: str((getattr(event, 'raw_event', None) or {}).get('sender', {}).get('nickname')) or None,
+            lambda: str(event.message_obj.sender.nickname) if hasattr(event, 'message_obj') and hasattr(event.message_obj, 'sender') and hasattr(event.message_obj.sender, 'nickname') and event.message_obj.sender.nickname else None,
+        ]:
+            try:
+                result = getter()
+                if result and result != 'None':
+                    return result
+            except Exception:
+                pass
+        return ""
+
     def _get_all_admin_ids(self) -> set:
         # 合并插件管理员名单(DB) + AstrBot 全局 admin_id
         try:

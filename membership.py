@@ -318,10 +318,13 @@ class MembershipMixin:
                                  action_text, reason_text, [])
             # 发送审核结果通知
             operator_id = self._try_get_sender_id(event)
+            operator_nickname = self._try_get_sender_nickname(event)
+            operator_display = f"{operator_nickname}({operator_id})" if operator_nickname else operator_id
+            nickname = pending_info.get("nickname", "") or user_id
             if approve:
-                notice = f"[入群审核] {user_id} 的申请已被 {operator_id} 通过"
+                notice = f"[入群审核] {nickname}({user_id}) 的申请已通过\n操作人: {operator_display}"
             else:
-                notice = f"[入群审核] {user_id} 的申请已被 {operator_id} 拒绝\n原因: {reject_reason}"
+                notice = f"[入群审核] {nickname}({user_id}) 的申请已被拒绝\n操作人: {operator_display}\n拒绝原因: {reject_reason}"
             # 发送通知到群
             gid_int = self._safe_int(group_id, 0)
             if gid_int:
