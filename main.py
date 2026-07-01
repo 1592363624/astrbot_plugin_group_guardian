@@ -21,6 +21,8 @@ from .llm_tools import LlmToolsMixin
 from .membership import MembershipMixin
 from .moderation import ModerationMixin
 from .onebot import OneBotMixin
+from .permission_checker import PermissionChecker
+from .permission_manager import auto_discover_commands, command_registry
 from .remote import RemoteMixin
 from .scheduler import SchedulerMixin
 from .storage import SQLiteStorage
@@ -43,6 +45,13 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
         self._data_dir = StarTools.get_data_dir()
         self._storage = SQLiteStorage(self._data_dir, self._get_plugin_dir())
         self._storage.initialize()
+        # 初始化命令权限管理系统
+        self._storage.create_command_permissions_tables()
+        auto_discover_commands()
+        # 将注册表中的命令同步到数据库（仅插入不存在的默认条目）
+        self._sync_registry_to_db()
+        # 初始化权限检查中间件
+        self._permission_checker = PermissionChecker(self._storage, self)
         # 多群独立配置缓存：{group_id: {key: value(str)}}，按群懒加载，WebUI 改配置后失效
         self._group_cfg_cache = {}
         # bot 自身 QQ 号缓存（用于群管操作前置权限检测）
@@ -106,6 +115,22 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
                 logger.debug("[GroupMgr] 后台重建任务已取消")
         await self._stop_scheduler()
         logger.info("[GroupMgr] 插件卸载，SQLite 存储已自动持久化")
+
+    def _sync_registry_to_db(self):
+        """将内存注册表中的命令同步到数据库，只插入不存在的默认条目"""
+        all_cmds = command_registry.get_all()
+        for cmd, perm in all_cmds.items():
+            existing = self._storage.get_command_permission(cmd)
+            if not existing:
+                self._storage.save_command_permission(
+                    command=cmd,
+                    permission_level=perm.permission_level,
+                    enabled=True,
+                    description=perm.description,
+                    category=perm.category,
+                    allow_group_override=perm.allow_group_override,
+                )
+        logger.info(f"[GroupMgr] 命令权限注册表已同步到数据库，共 {len(all_cmds)} 条命令")
 
     def _set_rebuild_status(self, state: str, target: str = "", message: str = "") -> None:
         self._rebuild_status = {

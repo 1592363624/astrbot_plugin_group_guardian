@@ -866,12 +866,10 @@ class CommandsMixin:
         if not group_id:
             yield event.plain_result("请在群内使用此命令")
             return
-        # 仅群主或插件全局管理员可改本群授权策略（与 /移除群管权限 一致）。
-        # 不放给普通群管，避免被授权的群管反过来扩大或锁定授权范围。
-        operator = self._try_get_sender_id(event)
-        role = await self._get_member_role(event, group_id, operator)
-        if role != "owner" and not await self._is_plugin_admin(event):
-            yield event.plain_result("仅群主或插件管理员可以管理本群的群管理授权")
+        # 使用权限检查系统判断用户是否有权限执行此命令
+        perm_result = await self._permission_checker.check_permission(event, "群管理授权")
+        if not perm_result.allowed:
+            yield event.plain_result(perm_result.message or "权限不足，无法执行此命令")
             return
         args = event.message_str.split()
         if len(args) < 2:
@@ -904,10 +902,10 @@ class CommandsMixin:
         if not group_id:
             yield event.plain_result("请在群内使用此命令")
             return
-        operator = self._try_get_sender_id(event)
-        role = await self._get_member_role(event, group_id, operator)
-        if role != "owner" and not await self._is_plugin_admin(event):
-            yield event.plain_result("仅群主或插件管理员可以管理本群的群管权限")
+        # 使用权限检查系统判断用户是否有权限执行此命令
+        perm_result = await self._permission_checker.check_permission(event, "移除群管权限")
+        if not perm_result.allowed:
+            yield event.plain_result(perm_result.message or "权限不足，无法执行此命令")
             return
         args = event.message_str.split()
         if len(args) < 2:

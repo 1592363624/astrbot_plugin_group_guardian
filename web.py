@@ -273,6 +273,16 @@ class WebMixin:
                 ("/configured_groups", self._web_configured_groups, ["GET"], "列出有独立配置的群"),
                 ("/group_config/batch_set", self._web_batch_set_group_config, ["POST"], "批量设置某群配置"),
                 ("/group_config/copy", self._web_copy_group_config, ["POST"], "从其他群复制配置"),
+                # v2.5.0 新增：命令权限管理 API
+                ("/command_permissions", self._web_get_command_permissions, ["GET"], "获取命令权限配置列表"),
+                ("/command_permissions/save", self._web_save_command_permission, ["POST"], "保存命令权限配置"),
+                ("/command_permissions/delete", self._web_delete_command_permission, ["POST"], "删除命令权限配置"),
+                ("/command_permissions/group", self._web_get_group_command_permissions, ["GET"], "获取群级别命令权限覆盖"),
+                ("/command_permissions/group/save", self._web_save_group_command_permission, ["POST"], "保存群级别命令权限覆盖"),
+                ("/command_permissions/group/delete", self._web_delete_group_command_permission, ["POST"], "删除群级别命令权限覆盖"),
+                ("/command_permissions/export", self._web_export_command_permissions, ["GET"], "导出命令权限配置"),
+                ("/command_permissions/import", self._web_import_command_permissions, ["POST"], "导入命令权限配置"),
+                ("/command_permissions/logs", self._web_get_command_permission_logs, ["GET"], "获取命令权限变更日志"),
             ]
             for path, handler, methods, desc in routes:
                 self.context.register_web_api(
@@ -1773,5 +1783,170 @@ class WebMixin:
                     copied += 1
             self._invalidate_group_cfg_cache(target_id)
             return jsonify({"status": "success", "source": source_id, "target": target_id, "copied": copied})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    # ==================== 命令权限管理 API ====================
+
+    async def _web_get_command_permissions(self):
+        """获取命令权限配置列表"""
+        try:
+            category = quart_request.args.get("category", "")
+            enabled = quart_request.args.get("enabled", None)
+            enabled_int = None
+            if enabled is not None and enabled != "":
+                enabled_int = 1 if enabled == "1" else 0
+            permissions = self._storage.list_command_permissions(category=category, enabled=enabled_int)
+            return jsonify(permissions)
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_save_command_permission(self):
+        """保存命令权限配置"""
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            command = data.get("command", "").strip()
+            if not command:
+                return jsonify({"status": "error", "message": "缺少 command 参数"})
+            permission_level = data.get("permission_level")
+            enabled = data.get("enabled")
+            allow_group_override = data.get("allow_group_override")
+            self._storage.save_command_permission(
+                command=command,
+                permission_level=int(permission_level) if permission_level is not None else None,
+                enabled=int(enabled) if enabled is not None else None,
+                allow_group_override=1 if allow_group_override else (0 if allow_group_override is not None else None)
+            )
+            # 记录变更日志
+            changes = []
+            if permission_level is not None:
+                changes.append(f"权限级别={permission_level}")
+            if enabled is not None:
+                changes.append(f"启用={'是' if enabled else '否'}")
+            if allow_group_override is not None:
+                changes.append(f"允许群覆盖={'是' if allow_group_override else '否'}")
+            if changes:
+                self._storage.add_command_permission_log(
+                    command=command,
+                    operator="WebUI管理员",
+                    change_type="update",
+                    details="变更: " + ", ".join(changes)
+                )
+            # 使权限检查缓存立即失效，新配置实时生效
+            if hasattr(self, '_permission_checker') and self._permission_checker:
+                await self._permission_checker.invalidate_cache(command=command)
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_delete_command_permission(self):
+        """删除命令权限配置"""
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            command = data.get("command", "").strip()
+            if not command:
+                return jsonify({"status": "error", "message": "缺少 command 参数"})
+            self._storage.delete_command_permission(command)
+            self._storage.add_command_permission_log(
+                command=command,
+                operator="WebUI管理员",
+                change_type="delete",
+                details=f"删除命令 {command} 的权限配置"
+            )
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_get_group_command_permissions(self):
+        """获取群级别命令权限覆盖"""
+        try:
+            group_id = quart_request.args.get("group_id", "").strip()
+            if not group_id:
+                return jsonify({"status": "error", "message": "缺少 group_id 参数"})
+            permissions = self._storage.list_group_command_permissions(group_id)
+            return jsonify(permissions)
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_save_group_command_permission(self):
+        """保存群级别命令权限覆盖"""
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            group_id = data.get("group_id", "").strip()
+            command = data.get("command", "").strip()
+            if not group_id or not command:
+                return jsonify({"status": "error", "message": "缺少 group_id 或 command 参数"})
+            permission_level = data.get("permission_level", 4)
+            enabled = data.get("enabled", 1)
+            self._storage.save_group_command_permission(
+                group_id=group_id,
+                command=command,
+                permission_level=int(permission_level),
+                enabled=int(enabled)
+            )
+            self._storage.add_command_permission_log(
+                command=command,
+                operator="WebUI管理员",
+                change_type="group_override",
+                group_id=group_id,
+                details=f"群 {group_id} 命令 {command} 权限级别={permission_level}"
+            )
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_delete_group_command_permission(self):
+        """删除群级别命令权限覆盖"""
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            group_id = data.get("group_id", "").strip()
+            command = data.get("command", "").strip()
+            if not group_id or not command:
+                return jsonify({"status": "error", "message": "缺少 group_id 或 command 参数"})
+            self._storage.delete_group_command_permission(group_id, command)
+            self._storage.add_command_permission_log(
+                command=command,
+                operator="WebUI管理员",
+                change_type="group_override_delete",
+                group_id=group_id,
+                details=f"删除群 {group_id} 命令 {command} 的覆盖配置"
+            )
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_export_command_permissions(self):
+        """导出命令权限配置"""
+        try:
+            data = self._storage.export_command_permissions()
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_import_command_permissions(self):
+        """导入命令权限配置"""
+        try:
+            data = await quart_request.get_json(force=True, silent=True) or {}
+            permissions_data = data.get("permissions", [])
+            overwrite = data.get("overwrite", True)
+            if not permissions_data:
+                return jsonify({"status": "error", "message": "缺少 permissions 数据"})
+            result = self._storage.import_command_permissions(permissions_data, overwrite=overwrite)
+            self._storage.add_command_permission_log(
+                command="批量导入",
+                operator="WebUI管理员",
+                change_type="import",
+                details=f"导入 {len(permissions_data)} 条命令权限配置"
+            )
+            return jsonify({"status": "success", "imported": len(permissions_data)})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    async def _web_get_command_permission_logs(self):
+        """获取命令权限变更日志"""
+        try:
+            limit = int(quart_request.args.get("limit", 50))
+            logs = self._storage.list_command_permission_logs(limit=limit)
+            return jsonify(logs)
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})

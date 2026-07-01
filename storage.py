@@ -1366,3 +1366,343 @@ class SQLiteStorage:
                 "SELECT DISTINCT group_id FROM group_configs ORDER BY group_id"
             ).fetchall()
         return [r["group_id"] for r in rows]
+
+    # ============================================================
+    # v2.5.0 新增：命令权限管理
+    # ============================================================
+    def create_command_permissions_tables(self) -> None:
+        """创建命令权限管理相关的数据表"""
+        with self._connect() as conn:
+            # 命令权限配置表
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS command_permissions ("
+                "command TEXT PRIMARY KEY, "
+                "permission_level INTEGER NOT NULL DEFAULT 4, "
+                "enabled INTEGER NOT NULL DEFAULT 1, "
+                "description TEXT, "
+                "category TEXT DEFAULT '其他', "
+                "allow_group_override INTEGER NOT NULL DEFAULT 1, "
+                "created_at INTEGER NOT NULL DEFAULT 0, "
+                "updated_at INTEGER NOT NULL DEFAULT 0"
+                ")"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_perm_category ON command_permissions(category)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_perm_level ON command_permissions(permission_level)")
+
+            # 群级别命令权限覆盖表
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS group_command_permissions ("
+                "group_id TEXT NOT NULL, "
+                "command TEXT NOT NULL, "
+                "permission_level INTEGER NOT NULL DEFAULT 4, "
+                "enabled INTEGER NOT NULL DEFAULT 1, "
+                "created_at INTEGER NOT NULL DEFAULT 0, "
+                "updated_at INTEGER NOT NULL DEFAULT 0, "
+                "UNIQUE(group_id, command)"
+                ")"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_group_cmd_perm_group ON group_command_permissions(group_id)")
+
+            # 命令权限变更日志表
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS command_permission_logs ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "command TEXT NOT NULL, "
+                "operator TEXT NOT NULL DEFAULT 'system', "
+                "old_level INTEGER, "
+                "new_level INTEGER, "
+                "old_enabled INTEGER, "
+                "new_enabled INTEGER, "
+                "change_type TEXT NOT NULL, "
+                "group_id TEXT DEFAULT '', "
+                "timestamp INTEGER NOT NULL, "
+                "details TEXT DEFAULT ''"
+                ")"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_perm_log_command ON command_permission_logs(command)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cmd_perm_log_timestamp ON command_permission_logs(timestamp)")
+            conn.commit()
+
+    def get_command_permission(self, command: str) -> Optional[dict]:
+        """获取命令权限配置"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT command, permission_level, enabled, description, category, "
+                "allow_group_override, created_at, updated_at "
+                "FROM command_permissions WHERE command=?",
+                (str(command),),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "command": row["command"],
+            "permission_level": row["permission_level"],
+            "enabled": bool(row["enabled"]),
+            "description": row["description"] or "",
+            "category": row["category"] or "其他",
+            "allow_group_override": bool(row["allow_group_override"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def list_command_permissions(self, category: str = "", enabled: Optional[int] = None) -> List[dict]:
+        """列出所有命令权限配置"""
+        sql = "SELECT command, permission_level, enabled, description, category, allow_group_override, created_at, updated_at FROM command_permissions WHERE 1=1"
+        params: List[object] = []
+        if category:
+            sql += " AND category=?"
+            params.append(category)
+        if enabled in (0, 1):
+            sql += " AND enabled=?"
+            params.append(enabled)
+        sql += " ORDER BY category, command"
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "command": r["command"],
+                "permission_level": r["permission_level"],
+                "enabled": bool(r["enabled"]),
+                "description": r["description"] or "",
+                "category": r["category"] or "其他",
+                "allow_group_override": bool(r["allow_group_override"]),
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    def save_command_permission(self, command: str, permission_level: Optional[int] = None,
+                                enabled: Optional[bool] = None,
+                                description: Optional[str] = None,
+                                category: Optional[str] = None,
+                                allow_group_override: Optional[bool] = None) -> bool:
+        """保存命令权限配置（支持部分更新，None 表示不修改该字段）"""
+        now = int(time.time())
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT * FROM command_permissions WHERE command=?", (str(command),)
+            ).fetchone()
+            if existing:
+                # 部分更新：仅修改非 None 字段
+                new_level = permission_level if permission_level is not None else existing["permission_level"]
+                new_enabled = existing["enabled"] if enabled is None else (1 if enabled else 0)
+                new_desc = existing["description"] if description is None else description
+                new_cat = existing["category"] if category is None else category
+                new_override = existing["allow_group_override"] if allow_group_override is None else (1 if allow_group_override else 0)
+                conn.execute(
+                    "UPDATE command_permissions SET permission_level=?, enabled=?, description=?, "
+                    "category=?, allow_group_override=?, updated_at=? WHERE command=?",
+                    (new_level, new_enabled, new_desc, new_cat, new_override, now, str(command))
+                )
+            else:
+                # 新增：使用默认值
+                conn.execute(
+                    "INSERT INTO command_permissions("
+                    "command, permission_level, enabled, description, category, "
+                    "allow_group_override, created_at, updated_at"
+                    ") VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                    (str(command), permission_level or 4, 1 if (enabled is None or enabled) else 0,
+                     description or "", category or "其他",
+                     1 if (allow_group_override is None or allow_group_override) else 0, now, now)
+                )
+            conn.commit()
+        return True
+
+    def delete_command_permission(self, command: str) -> bool:
+        """删除命令权限配置"""
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM command_permissions WHERE command=?", (str(command),))
+            conn.commit()
+        return bool(cur.rowcount)
+
+    def get_group_command_permission(self, group_id: str, command: str) -> Optional[dict]:
+        """获取群级别命令权限覆盖"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT group_id, command, permission_level, enabled, created_at, updated_at "
+                "FROM group_command_permissions WHERE group_id=? AND command=?",
+                (str(group_id), str(command)),
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "group_id": row["group_id"],
+            "command": row["command"],
+            "permission_level": row["permission_level"],
+            "enabled": bool(row["enabled"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def list_group_command_permissions(self, group_id: str) -> List[dict]:
+        """列出某群的所有命令权限覆盖"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT group_id, command, permission_level, enabled, created_at, updated_at "
+                "FROM group_command_permissions WHERE group_id=? ORDER BY command",
+                (str(group_id),),
+            ).fetchall()
+        return [
+            {
+                "group_id": r["group_id"],
+                "command": r["command"],
+                "permission_level": r["permission_level"],
+                "enabled": bool(r["enabled"]),
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    def save_group_command_permission(self, group_id: str, command: str,
+                                      permission_level: int, enabled: bool = True) -> bool:
+        """保存群级别命令权限覆盖"""
+        now = int(time.time())
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO group_command_permissions("
+                "group_id, command, permission_level, enabled, created_at, updated_at"
+                ") VALUES(?, ?, ?, ?, COALESCE((SELECT created_at FROM group_command_permissions WHERE group_id=? AND command=?), ?), ?)",
+                (str(group_id), str(command), permission_level, 1 if enabled else 0,
+                 str(group_id), str(command), now, now)
+            )
+            conn.commit()
+        return True
+
+    def delete_group_command_permission(self, group_id: str, command: str) -> bool:
+        """删除群级别命令权限覆盖"""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM group_command_permissions WHERE group_id=? AND command=?",
+                (str(group_id), str(command))
+            )
+            conn.commit()
+        return bool(cur.rowcount)
+
+    def clear_group_command_permissions(self, group_id: str) -> int:
+        """清空某群的全部命令权限覆盖"""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM group_command_permissions WHERE group_id=?", (str(group_id),)
+            )
+            conn.commit()
+        return int(cur.rowcount or 0)
+
+    def add_command_permission_log(self, command: str, operator: str, change_type: str,
+                                   old_level: Optional[int] = None, new_level: Optional[int] = None,
+                                   old_enabled: Optional[bool] = None, new_enabled: Optional[bool] = None,
+                                   group_id: str = "", details: str = "") -> int:
+        """记录命令权限变更日志"""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO command_permission_logs("
+                "command, operator, old_level, new_level, old_enabled, new_enabled, "
+                "change_type, group_id, timestamp, details"
+                ") VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(command), str(operator),
+                    old_level, new_level,
+                    1 if old_enabled else 0 if old_enabled is not None else None,
+                    1 if new_enabled else 0 if new_enabled is not None else None,
+                    str(change_type), str(group_id), int(time.time()), str(details)
+                )
+            )
+            conn.commit()
+            return int(cur.lastrowid or 0)
+
+    def list_command_permission_logs(self, command: str = "", limit: int = 100,
+                                     offset: int = 0) -> List[dict]:
+        """列出命令权限变更日志"""
+        sql = "SELECT * FROM command_permission_logs WHERE 1=1"
+        params: List[object] = []
+        if command:
+            sql += " AND command=?"
+            params.append(command)
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        with self._connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "command": r["command"],
+                "operator": r["operator"],
+                "old_level": r["old_level"],
+                "new_level": r["new_level"],
+                "old_enabled": bool(r["old_enabled"]) if r["old_enabled"] is not None else None,
+                "new_enabled": bool(r["new_enabled"]) if r["new_enabled"] is not None else None,
+                "change_type": r["change_type"],
+                "group_id": r["group_id"] or "",
+                "timestamp": r["timestamp"],
+                "details": r["details"] or "",
+            }
+            for r in rows
+        ]
+
+    def export_command_permissions(self) -> dict:
+        """导出所有命令权限配置"""
+        permissions = self.list_command_permissions()
+        group_permissions = {}
+        # 获取所有有群级别覆盖的群
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT group_id FROM group_command_permissions"
+            ).fetchall()
+            for row in rows:
+                gid = row["group_id"]
+                group_permissions[gid] = self.list_group_command_permissions(gid)
+        return {
+            "global_permissions": permissions,
+            "group_permissions": group_permissions,
+            "exported_at": int(time.time()),
+        }
+
+    def import_command_permissions(self, data: dict, overwrite: bool = False) -> dict:
+        """导入命令权限配置"""
+        imported_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        # 导入全局权限
+        for perm in data.get("global_permissions", []):
+            try:
+                existing = self.get_command_permission(perm["command"])
+                if existing and not overwrite:
+                    skipped_count += 1
+                    continue
+                self.save_command_permission(
+                    command=perm["command"],
+                    permission_level=perm.get("permission_level", 4),
+                    enabled=perm.get("enabled", True),
+                    description=perm.get("description", ""),
+                    category=perm.get("category", "其他"),
+                    allow_group_override=perm.get("allow_group_override", True)
+                )
+                imported_count += 1
+            except Exception:
+                error_count += 1
+
+        # 导入群级别覆盖
+        for group_id, perms in data.get("group_permissions", {}).items():
+            for perm in perms:
+                try:
+                    existing = self.get_group_command_permission(group_id, perm["command"])
+                    if existing and not overwrite:
+                        skipped_count += 1
+                        continue
+                    self.save_group_command_permission(
+                        group_id=group_id,
+                        command=perm["command"],
+                        permission_level=perm.get("permission_level", 4),
+                        enabled=perm.get("enabled", True)
+                    )
+                    imported_count += 1
+                except Exception:
+                    error_count += 1
+
+        return {
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "errors": error_count,
+        }
