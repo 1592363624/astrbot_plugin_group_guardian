@@ -27,7 +27,7 @@ class PermissionLevel(IntEnum):
 class CommandPermission:
     """命令权限配置数据模型"""
     command: str                          # 命令名称
-    permission_level: PermissionLevel     # 所需最低权限级别
+    permission_level: Optional[PermissionLevel] = None  # 所需最低权限级别，None 表示未配置（需在 WebUI 设置）
     enabled: bool = True                  # 命令是否启用
     description: str = ""                 # 命令描述
     category: str = "其他"                # 命令分类
@@ -59,8 +59,12 @@ class CommandRegistry:
     _categories: Dict[str, List[str]] = field(default_factory=dict)
     
     def register(self, command: str, description: str = "", category: str = "其他",
-                 default_level: PermissionLevel = PermissionLevel.GROUP_ADMIN) -> None:
-        """注册命令到注册表"""
+                 default_level: Optional[PermissionLevel] = None) -> None:
+        """注册命令到注册表
+
+        v2.4.4 起 default_level 默认为 None，表示未配置权限。
+        权限级别完全由 WebUI 控制，代码中不再预设默认权限。
+        """
         if command not in self._commands:
             now = int(time.time())
             self._commands[command] = CommandPermission(
@@ -129,53 +133,60 @@ CATEGORY_OTHER = "其他"
 
 
 def register_command(command: str, description: str = "", category: str = CATEGORY_OTHER,
-                     default_level: PermissionLevel = PermissionLevel.GROUP_ADMIN) -> None:
-    """便捷的命令注册装饰器/函数"""
+                     default_level: Optional[PermissionLevel] = None) -> None:
+    """便捷的命令注册装饰器/函数
+
+    v2.4.4 起 default_level 默认为 None，权限级别完全由 WebUI 控制。
+    """
     command_registry.register(command, description, category, default_level)
 
 
 def auto_discover_commands() -> None:
-    """自动发现并注册所有已知命令"""
+    """自动发现并注册所有已知命令
+
+    v2.4.4 起只注册命令名、描述和分类（用于 WebUI 显示），不再预设默认权限级别。
+    新命令在 WebUI 中显示为"未配置"，使用时提示需要在 WebUI 中设置权限。
+    """
     # 审核管理类
-    register_command("自动审核", "开关智能审核功能", CATEGORY_MODERATION, PermissionLevel.PLUGIN_ADMIN)
-    
+    register_command("自动审核", "开关智能审核功能", CATEGORY_MODERATION)
+
     # 群管理类
     register_command("全体禁言", "开启或关闭全员禁言", CATEGORY_GROUP_MANAGEMENT)
     register_command("群名", "修改群聊名称", CATEGORY_GROUP_MANAGEMENT)
     register_command("发公告", "发布群公告", CATEGORY_GROUP_MANAGEMENT)
     register_command("删公告", "删除群公告", CATEGORY_GROUP_MANAGEMENT)
     register_command("加群方式", "修改入群验证方式", CATEGORY_GROUP_MANAGEMENT)
-    register_command("群管理授权", "群管理员授权开关", CATEGORY_GROUP_MANAGEMENT, PermissionLevel.GROUP_OWNER)
-    
+    register_command("群管理授权", "群管理员授权开关", CATEGORY_GROUP_MANAGEMENT)
+
     # 成员管理类
     register_command("禁言", "禁言指定群成员", CATEGORY_MEMBER_MANAGEMENT)
     register_command("解禁", "解除指定群成员禁言", CATEGORY_MEMBER_MANAGEMENT)
     register_command("踢人", "将成员移出群聊", CATEGORY_MEMBER_MANAGEMENT)
     register_command("设置名片", "修改成员群名片", CATEGORY_MEMBER_MANAGEMENT)
     register_command("头衔", "设置成员专属头衔", CATEGORY_MEMBER_MANAGEMENT)
-    register_command("设置管理", "设置或取消群管理员", CATEGORY_MEMBER_MANAGEMENT, PermissionLevel.GROUP_OWNER)
-    register_command("设置管理插件", "管理插件管理员列表", CATEGORY_PLUGIN_CONFIG, PermissionLevel.PLUGIN_ADMIN)
-    
+    register_command("设置管理", "设置或取消群管理员", CATEGORY_MEMBER_MANAGEMENT)
+    register_command("设置管理插件", "管理插件管理员列表", CATEGORY_PLUGIN_CONFIG)
+
     # 信息查询类
-    register_command("字数统计", "统计群内关键词出现次数", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
-    register_command("群统计", "显示群内今日消息统计", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
+    register_command("字数统计", "统计群内关键词出现次数", CATEGORY_INFO_QUERY)
+    register_command("群统计", "显示群内今日消息统计", CATEGORY_INFO_QUERY)
     register_command("搜索成员", "按昵称或QQ号搜索群成员", CATEGORY_INFO_QUERY)
-    register_command("成员列表", "查看群成员列表", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
-    register_command("禁言列表", "查看当前被禁言的成员", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
-    register_command("公告列表", "查看群公告列表", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
-    register_command("文件列表", "查看群文件列表", CATEGORY_INFO_QUERY, PermissionLevel.ALL_MEMBERS)
-    
+    register_command("成员列表", "查看群成员列表", CATEGORY_INFO_QUERY)
+    register_command("禁言列表", "查看当前被禁言的成员", CATEGORY_INFO_QUERY)
+    register_command("公告列表", "查看群公告列表", CATEGORY_INFO_QUERY)
+    register_command("文件列表", "查看群文件列表", CATEGORY_INFO_QUERY)
+
     # 批量操作类
     register_command("批量撤回", "批量撤回最近消息", CATEGORY_BATCH_OPERATIONS)
     register_command("批量禁言", "批量禁言多人", CATEGORY_BATCH_OPERATIONS)
     register_command("批量踢人", "批量踢出多人", CATEGORY_BATCH_OPERATIONS)
-    
+
     # 消息操作类
     register_command("撤回最新消息", "撤回群内最新一条或多条消息", CATEGORY_GROUP_MANAGEMENT)
     register_command("设精华", "设置精华消息", CATEGORY_GROUP_MANAGEMENT)
     register_command("取消精华", "取消精华消息", CATEGORY_GROUP_MANAGEMENT)
     register_command("删文件", "删除群文件", CATEGORY_GROUP_MANAGEMENT)
-    
+
     # 权限管理类
-    register_command("移除群管权限", "群主移除本群某群管的bot管理权限", CATEGORY_PLUGIN_CONFIG, PermissionLevel.GROUP_OWNER)
-    register_command("恢复群管权限", "群主恢复本群某群管的bot管理权限", CATEGORY_PLUGIN_CONFIG, PermissionLevel.GROUP_OWNER)
+    register_command("移除群管权限", "群主移除本群某群管的bot管理权限", CATEGORY_PLUGIN_CONFIG)
+    register_command("恢复群管权限", "群主恢复本群某群管的bot管理权限", CATEGORY_PLUGIN_CONFIG)

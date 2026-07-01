@@ -30,7 +30,13 @@ from .utils import UtilitiesMixin
 from .web import WebMixin
 
 
-
+@register(
+    "astrbot_plugin_group_guardian",
+    "zhaisir",
+    "QQ群智能守护者",
+    PLUGIN_VERSION,
+    "https://github.com/1592363624/astrbot_plugin_group_guardian",
+)
 class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, SchedulerMixin, RemoteMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin, Star):
     """插件主类。所有 AstrBot 装饰器注册入口，业务逻辑委托给 mixin 模块。"""
 
@@ -117,20 +123,54 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
         logger.info("[GroupMgr] 插件卸载，SQLite 存储已自动持久化")
 
     def _sync_registry_to_db(self):
-        """将内存注册表中的命令同步到数据库，只插入不存在的默认条目"""
+        """将内存注册表中的命令同步到数据库
+
+        v2.4.4 起：只同步命令描述和分类（用于 WebUI 显示），不再自动写入默认权限级别。
+        权限级别由用户在 WebUI 中手动设置后才会写入数据库。
+        已有数据库配置不会被覆盖。
+        """
         all_cmds = command_registry.get_all()
+        synced = 0
         for cmd, perm in all_cmds.items():
             existing = self._storage.get_command_permission(cmd)
             if not existing:
+                # 数据库中无配置：只写入命令名、描述、分类，权限级别留空（表示未配置）
+                # 使用 permission_level=None 表示未配置，WebUI 会显示"未配置"
+                # 注意：save_command_permission 需要 int 类型，用 -1 表示未配置
                 self._storage.save_command_permission(
                     command=cmd,
-                    permission_level=perm.permission_level,
-                    enabled=True,
+                    permission_level=-1,  # -1 表示未配置权限级别
+                    enabled=1,
                     description=perm.description,
                     category=perm.category,
-                    allow_group_override=perm.allow_group_override,
+                    allow_group_override=1,
                 )
-        logger.info(f"[GroupMgr] 命令权限注册表已同步到数据库，共 {len(all_cmds)} 条命令")
+                synced += 1
+        logger.info(f"[GroupMgr] 命令权限注册表已同步到数据库，新增 {synced} 条命令（共 {len(all_cmds)} 条）")
+
+    async def _check_cmd_permission(self, event: AstrMessageEvent, command: str) -> Tuple[bool, str]:
+        """统一的命令权限校验方法，在命令分发层调用。
+
+        在命令方法执行前做权限校验，确保权限校验在参数解析之前。
+        如果权限校验失败，直接返回错误消息，不进入命令方法内部。
+
+        Args:
+            event: 消息事件
+            command: 命令名称（与注册表中的命令名一致）
+
+        Returns:
+            Tuple[bool, str]: (是否允许, 错误消息)
+        """
+        if not getattr(self, '_permission_checker', None):
+            return True, ""
+        try:
+            perm_result = await self._permission_checker.check_permission(event, command)
+            if not perm_result.allowed:
+                return False, perm_result.reason
+            return True, ""
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 权限校验异常({command}): {e}")
+            return True, ""  # 异常时放行，避免权限系统故障导致所有命令不可用
 
     def _set_rebuild_status(self, state: str, target: str = "", message: str = "") -> None:
         self._rebuild_status = {
@@ -238,12 +278,20 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("字数统计")
     async def word_count(self, event: AstrMessageEvent):
         '''统计群内关键词出现次数'''
+        allowed, msg = await self._check_cmd_permission(event, "字数统计")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.word_count(self, event):
             yield item
 
     @filter.command("群统计")
     async def group_stats(self, event: AstrMessageEvent):
         '''显示群内今日消息统计和活跃排行'''
+        allowed, msg = await self._check_cmd_permission(event, "群统计")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.group_stats(self, event):
             yield item
 
@@ -252,108 +300,180 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("搜索成员")
     async def search_member(self, event: AstrMessageEvent):
         '''按昵称或QQ号搜索群成员'''
+        allowed, msg = await self._check_cmd_permission(event, "搜索成员")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.search_member(self, event):
             yield item
 
     @filter.command("撤回最新消息")
     async def recall_last(self, event: AstrMessageEvent):
         '''撤回群内最新一条或多条消息'''
+        allowed, msg = await self._check_cmd_permission(event, "撤回最新消息")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.recall_last(self, event):
             yield item
 
     @filter.command("禁言")
     async def cmd_ban(self, event: AstrMessageEvent):
         '''禁言指定群成员。用法: /禁言 <QQ号或@某人> <分钟>'''
+        allowed, msg = await self._check_cmd_permission(event, "禁言")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_ban(self, event):
             yield item
 
     @filter.command("解禁")
     async def cmd_unban(self, event: AstrMessageEvent):
         '''解除指定群成员禁言。用法: /解禁 <QQ号或@某人>'''
+        allowed, msg = await self._check_cmd_permission(event, "解禁")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_unban(self, event):
             yield item
 
     @filter.command("踢人")
     async def cmd_kick(self, event: AstrMessageEvent):
         '''将成员移出群聊。用法: /踢人 <QQ号或@某人>'''
+        allowed, msg = await self._check_cmd_permission(event, "踢人")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_kick(self, event):
             yield item
 
     @filter.command("全体禁言")
     async def cmd_whole_ban(self, event: AstrMessageEvent):
         '''开启或关闭全员禁言。用法: /全体禁言 开启/关闭'''
+        allowed, msg = await self._check_cmd_permission(event, "全体禁言")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_whole_ban(self, event):
             yield item
 
     @filter.command("设置名片")
     async def cmd_set_card(self, event: AstrMessageEvent):
         '''修改成员群名片。用法: /设置名片 <QQ号或@某人> <新名称>'''
+        allowed, msg = await self._check_cmd_permission(event, "设置名片")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_set_card(self, event):
             yield item
 
     @filter.command("发公告")
     async def cmd_send_notice(self, event: AstrMessageEvent):
         '''发布群公告。用法: /发公告 <内容>'''
+        allowed, msg = await self._check_cmd_permission(event, "发公告")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_send_notice(self, event):
             yield item
 
     @filter.command("删公告")
     async def cmd_delete_notice(self, event: AstrMessageEvent):
         '''删除群公告。用法: /删公告 <公告ID>'''
+        allowed, msg = await self._check_cmd_permission(event, "删公告")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_delete_notice(self, event):
             yield item
 
     @filter.command("公告列表")
     async def cmd_list_notices(self, event: AstrMessageEvent):
         '''查看群公告列表'''
+        allowed, msg = await self._check_cmd_permission(event, "公告列表")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_list_notices(self, event):
             yield item
 
     @filter.command("文件列表")
     async def cmd_list_files(self, event: AstrMessageEvent):
         '''查看群文件列表'''
+        allowed, msg = await self._check_cmd_permission(event, "文件列表")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_list_files(self, event):
             yield item
 
     @filter.command("删文件")
     async def cmd_delete_file(self, event: AstrMessageEvent):
         '''删除群文件。用法: /删文件 <文件ID>'''
+        allowed, msg = await self._check_cmd_permission(event, "删文件")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_delete_file(self, event):
             yield item
 
     @filter.command("成员列表")
     async def cmd_member_list(self, event: AstrMessageEvent):
         '''查看群成员列表'''
+        allowed, msg = await self._check_cmd_permission(event, "成员列表")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_member_list(self, event):
             yield item
 
     @filter.command("禁言列表")
     async def cmd_banned_list(self, event: AstrMessageEvent):
         '''查看当前被禁言的成员'''
+        allowed, msg = await self._check_cmd_permission(event, "禁言列表")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_banned_list(self, event):
             yield item
 
     @filter.command("群名")
     async def cmd_set_name(self, event: AstrMessageEvent):
         '''修改群聊名称。用法: /群名 <新群名>'''
+        allowed, msg = await self._check_cmd_permission(event, "群名")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_set_name(self, event):
             yield item
 
     @filter.command("头衔")
     async def cmd_set_title(self, event: AstrMessageEvent):
         '''设置成员专属头衔。用法: /头衔 <QQ号> <头衔名>'''
+        allowed, msg = await self._check_cmd_permission(event, "头衔")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_set_title(self, event):
             yield item
 
     @filter.command("设精华")
     async def cmd_set_essence(self, event: AstrMessageEvent):
         '''设置精华消息。用法: /设精华 <消息ID>'''
+        allowed, msg = await self._check_cmd_permission(event, "设精华")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_set_essence(self, event):
             yield item
 
     @filter.command("取消精华")
     async def cmd_del_essence(self, event: AstrMessageEvent):
         '''取消精华消息。用法: /取消精华 <消息ID>'''
+        allowed, msg = await self._check_cmd_permission(event, "取消精华")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_del_essence(self, event):
             yield item
 
@@ -361,12 +481,20 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("设置管理")
     async def cmd_set_admin(self, event: AstrMessageEvent):
         '''设置或取消群管理员。用法: /设置管理 @某人 或 <QQ号> [设置/取消]'''
+        allowed, msg = await self._check_cmd_permission(event, "设置管理")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_set_admin(self, event):
             yield item
 
     @filter.command("加群方式")
     async def cmd_join_verify(self, event: AstrMessageEvent):
         '''修改入群验证方式。用法: /加群方式 <需要验证/允许/禁止>'''
+        allowed, msg = await self._check_cmd_permission(event, "加群方式")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_join_verify(self, event):
             yield item
 
@@ -385,6 +513,10 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("批量撤回")
     async def recall_all(self, event: AstrMessageEvent):
         '''批量撤回最近消息。用法: /批量撤回 [条数] 或 /批量撤回 @用户 [条数]'''
+        allowed, msg = await self._check_cmd_permission(event, "批量撤回")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.recall_all(self, event):
             yield item
 
@@ -628,12 +760,20 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("批量禁言")
     async def cmd_batch_ban(self, event: AstrMessageEvent):
         '''批量禁言多人。用法: /批量禁言 <QQ1> <QQ2> ... [时长分钟]'''
+        allowed, msg = await self._check_cmd_permission(event, "批量禁言")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_batch_ban(self, event):
             yield item
 
     @filter.command("批量踢人")
     async def cmd_batch_kick(self, event: AstrMessageEvent):
         '''批量踢出多人。用法: /批量踢人 <QQ1> <QQ2> ...'''
+        allowed, msg = await self._check_cmd_permission(event, "批量踢人")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_batch_kick(self, event):
             yield item
 
@@ -641,6 +781,10 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("群管理授权")
     async def cmd_group_admin_grant(self, event: AstrMessageEvent):
         '''群管理员授权开关。用法: /群管理授权 开启/关闭/状态'''
+        allowed, msg = await self._check_cmd_permission(event, "群管理授权")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_group_admin_grant(self, event):
             yield item
 
@@ -648,12 +792,20 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
     @filter.command("移除群管权限")
     async def cmd_revoke_admin_perm(self, event: AstrMessageEvent):
         '''群主移除本群某群管的bot管理权限。用法: /移除群管权限 <QQ号>'''
+        allowed, msg = await self._check_cmd_permission(event, "移除群管权限")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_revoke_admin_perm(self, event):
             yield item
 
     @filter.command("恢复群管权限")
     async def cmd_restore_admin_perm(self, event: AstrMessageEvent):
         '''群主恢复本群某群管的bot管理权限。用法: /恢复群管权限 <QQ号>'''
+        allowed, msg = await self._check_cmd_permission(event, "恢复群管权限")
+        if not allowed:
+            yield event.plain_result(msg)
+            return
         async for item in CommandsMixin.cmd_revoke_admin_perm(self, event):
             yield item
 

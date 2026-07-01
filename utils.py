@@ -499,6 +499,10 @@ class UtilitiesMixin:
 
     def _format_message_content(self, raw_message) -> str:
         # 将 OneBot 消息链（segment 列表）按 type 分派到 _SEG_FORMATTERS，拼接为纯文本供审核规则匹配。
+        # 注意: AstrBot 的 message_obj.message 是 BaseMessageComponent 对象列表（不是 dict 列表），
+        # 需先调用 toDict() 转为标准 OneBot 段字典。否则 str(seg) 会把对象所有字段（如 Reply 的
+        # chain/message_str/text，即被引用消息的完整内容）都序列化出来，导致引用消息原文被
+        # 算进当前发言者长度，触发长文本/重复消息等刷屏误判。
         if raw_message is None:
             return '[空消息]'
         if not isinstance(raw_message, list):
@@ -506,8 +510,19 @@ class UtilitiesMixin:
         parts = []
         for seg in raw_message:
             if not isinstance(seg, dict):
-                parts.append(str(seg))
-                continue
+                # BaseMessageComponent 对象（Plain/At/Reply/Image 等）：
+                # 优先调用 toDict() 转为标准 OneBot 段字典，避免 str(seg) 把对象全部字段
+                # （特别是 Reply 的 chain/message_str）序列化进文本。
+                to_dict_fn = getattr(seg, 'toDict', None)
+                if callable(to_dict_fn):
+                    try:
+                        seg = to_dict_fn()
+                    except Exception:
+                        parts.append(f"[{type(seg).__name__}]")
+                        continue
+                else:
+                    parts.append(str(seg))
+                    continue
             t = seg.get('type', '')
             d = seg.get('data', {}) or {}
             formatter = self._SEG_FORMATTERS.get(t)

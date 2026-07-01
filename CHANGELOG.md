@@ -1,5 +1,31 @@
 # Changelog
 
+## v2.4.4 - 2026-07-01
+
+### 重构
+
+- **[Major] 权限管理系统完全重构：WebUI 全权控制，代码不再预设默认权限**
+  - **注册表不再设默认权限级别**: `auto_discover_commands()` 只注册命令名、描述和分类（用于 WebUI 显示），不再预设默认权限级别。`CommandPermission.permission_level` 改为 `Optional[PermissionLevel]`，默认 `None` 表示未配置
+  - **数据库不再自动写入默认权限**: `_sync_registry_to_db()` 只写入命令名、描述、分类的占位条目（`permission_level=-1` 表示未配置），不再自动写入默认权限级别。已有数据库配置不会被覆盖
+  - **权限为空时提示设置**: `PermissionChecker.check_permission()` 检测到 `permission_level=-1` 或 `None` 时，返回"命令尚未配置权限级别，请在 WebUI 指令列表中设置所需权限"。插件管理员始终绕过此检查
+  - **命令分发层统一权限校验**: 在 `main.py` 的 28 个 `@filter.command` 命令方法中，在转发到 `CommandsMixin` 之前先调用 `_check_cmd_permission(event, command_name)`。权限校验在参数解析之前，解决"无权限用户先看到用法提示"的问题
+  - **`register_command` 不再自动写入数据库**: `PermissionChecker.register_command()` 只注册到内存注册表，不再自动将默认配置写入数据库
+
+### Bug 修复
+
+- **[Critical] 权限校验顺序错误**: 命令方法内部先解析参数后校验权限，导致无权限用户执行命令时先看到"用法"提示而非"权限不足"。现改为在命令分发层先校验权限
+- **[Critical] `cmd_set_admin` 硬编码权限校验**: 删除硬编码的"白名单群+群主"校验，权限完全交由权限系统处理
+
+## v2.4.3 - 2026-07-01
+
+### Bug 修复
+
+- **[Critical] 引用消息被算进发言内容长度导致刷屏误判**: `_format_message_content` 在处理 `BaseMessageComponent` 对象时直接 `str(seg)`，对 `Reply` 对象（继承自 pydantic BaseModel）会输出全部字段（包括 `chain`/`message_str`/`text`，即被引用消息的完整内容），导致引用消息原文被算进当前发言者长度，触发长文本检测和重复消息检测。改为优先调用 `toDict()` 转为标准 OneBot 段字典后再走格式化分支，`Reply.toDict()` 只返回 `{id}`，确保引用消息仅占 `[回复:ID]` 短标记
+- **[Critical] WebUI 指令列表修改权限无效**: `commands.py` 中 `_prepare_group_action` / `_prepare_group_member_action` / `_prepare_message_action` 传入的 `feature_name` 与 `permission_manager.py` 注册表中的命令名不一致（如 "撤回消息" vs "撤回最新消息" / "批量撤回"、"群文件管理" vs "文件列表" / "删文件"、"修改群名" vs "群名"、"设置头衔" vs "头衔"、"精华消息" vs "设精华" / "取消精华"、"设置管理员" vs "设置管理"、"加群验证" vs "加群方式"、"查看群成员" vs "搜索成员"），权限检查时找不到对应配置就用默认值或允许所有成员，导致 WebUI 中改了权限但实际无效。已全部对齐注册表命令名
+- **[Critical] `cmd_set_admin` 硬编码权限校验绕过 WebUI 配置**: `cmd_set_admin`（设置管理）在调用权限系统前有硬编码的"白名单群+群主"校验，完全绕过 WebUI 权限配置，导致用户在 WebUI 中修改"设置管理"权限级别无效。已删除硬编码校验，权限完全交由 `_prepare_group_member_action` 中的权限系统处理（实际能否成功仍受 OneBot 协议限制：bot 必须是群主）
+- **群级别权限覆盖缓存未失效**: `_web_save_group_command_permission` / `_web_delete_group_command_permission` / `_web_delete_command_permission` / `_web_import_command_permissions` 修改数据库后未调用 `invalidate_cache`，导致权限检查器仍使用旧缓存。已补充缓存失效调用
+- **旧版 .pyc 缓存导致 `_extract_user_text_for_anti_flood` 异常**: `__pycache__` 中残留旧版本 `main.cpython-312.pyc` 和已删除模块 `qq_ops.cpython-312.pyc`，引用了不存在的方法 `_extract_user_text_for_anti_flood`。已清理旧缓存，重启后会重新编译
+
 ## v2.4.2 - 2026-06-29
 
 ### Bug 修复

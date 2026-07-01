@@ -7,7 +7,7 @@
 - 实时生效的权限变更机制
 - 权限判断逻辑与业务代码的解耦
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
@@ -129,39 +129,60 @@ class PermissionChecker:
     
     async def check_permission(self, event: AstrMessageEvent, command: str) -> "PermissionResult":
         """检查用户是否有权限执行指定命令
-        
+
+        v2.4.4 起：如果命令未在数据库中配置权限级别，返回"请先在 WebUI 中设置权限"。
+        权限级别完全由 WebUI 控制，代码中不再预设默认权限。
+
         Args:
             event: 消息事件
             command: 命令名称
-            
+
         Returns:
             PermissionResult: 权限检查结果
         """
         await self._refresh_cache_if_needed()
-        
+
         group_id = self._onebot._get_group_id(event)
         user_id = self._onebot._try_get_sender_id(event)
-        
-        # 获取命令的权限配置
+
+        # 插件管理员始终拥有最高权限，绕过所有权限配置检查
+        # 这确保即使权限未配置，插件管理员也能正常管理
+        user_level, level_desc = await self._get_user_permission_level(event)
+        if user_level == PermissionLevel.PLUGIN_ADMIN:
+            return PermissionResult(
+                allowed=True,
+                level=user_level,
+                reason=f"权限检查通过（{level_desc}）"
+            )
+
+        # 获取命令的权限配置（从数据库缓存）
         perm_config = self._permission_cache.get(command)
-        
-        # 如果命令未在权限系统中注册，使用默认逻辑
+
+        # 如果数据库中没有配置，尝试从注册表获取（注册表可能也没有默认权限）
         if not perm_config:
-            # 尝试从命令注册表获取默认配置
             registry_entry = command_registry.get(command)
-            if registry_entry:
+            if registry_entry and registry_entry.permission_level is not None:
+                # 注册表中有默认权限级别（向后兼容旧版本写入的配置）
                 perm_config = {
                     "permission_level": registry_entry.permission_level.value,
                     "enabled": registry_entry.enabled,
                     "allow_group_override": registry_entry.allow_group_override,
                 }
             else:
-                # 命令未注册，允许所有成员使用
+                # 命令未配置权限级别，提示需要在 WebUI 中设置
                 return PermissionResult(
-                    allowed=True,
-                    level=await self._get_user_permission_level(event),
-                    reason="命令未注册到权限系统，默认允许"
+                    allowed=False,
+                    level=user_level,
+                    reason=f"命令「{command}」尚未配置权限级别，请在 WebUI 指令列表中设置所需权限"
                 )
+
+        # 检查权限级别是否为 -1（表示未配置，由 _sync_registry_to_db 写入的占位条目）
+        if perm_config.get("permission_level") == -1 or perm_config.get("permission_level") is None:
+            return PermissionResult(
+                allowed=False,
+                level=user_level,
+                reason=f"命令「{command}」尚未配置权限级别，请在 WebUI 指令列表中设置所需权限"
+            )
         
         # 检查命令是否启用
         if not perm_config["enabled"]:
@@ -257,27 +278,14 @@ class PermissionChecker:
         logger.debug(f"[PermissionChecker] 权限缓存已失效")
     
     def register_command(self, command: str, description: str = "", category: str = "其他",
-                        default_level: PermissionLevel = PermissionLevel.GROUP_ADMIN) -> None:
+                        default_level: Optional[PermissionLevel] = None) -> None:
         """注册命令到权限系统
-        
-        如果命令已在数据库中有配置，则使用数据库配置；
-        否则使用默认配置，并保存到数据库。
+
+        v2.4.4 起不再自动将默认配置写入数据库。
+        只注册到内存注册表（用于 WebUI 显示命令列表）。
+        权限级别由用户在 WebUI 中手动设置后才会写入数据库。
         """
         command_registry.register(command, description, category, default_level)
-        
-        # 检查数据库中是否已有配置
-        existing = self._storage.get_command_permission(command)
-        if not existing:
-            # 保存默认配置到数据库
-            self._storage.save_command_permission(
-                command=command,
-                permission_level=default_level.value,
-                enabled=True,
-                description=description,
-                category=category,
-                allow_group_override=True
-            )
-            logger.debug(f"[PermissionChecker] 命令 {command} 已注册到权限系统")
 
 
 class PermissionResult:

@@ -1853,6 +1853,9 @@ class WebMixin:
                 change_type="delete",
                 details=f"删除命令 {command} 的权限配置"
             )
+            # 使权限检查缓存立即失效，新配置实时生效
+            if hasattr(self, '_permission_checker') and self._permission_checker:
+                await self._permission_checker.invalidate_cache(command=command)
             return jsonify({"status": "success"})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
@@ -1891,6 +1894,9 @@ class WebMixin:
                 group_id=group_id,
                 details=f"群 {group_id} 命令 {command} 权限级别={permission_level}"
             )
+            # 使权限检查的群级别覆盖缓存立即失效，新配置实时生效
+            if hasattr(self, '_permission_checker') and self._permission_checker:
+                await self._permission_checker.invalidate_cache(command=command, group_id=group_id)
             return jsonify({"status": "success"})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
@@ -1911,6 +1917,9 @@ class WebMixin:
                 group_id=group_id,
                 details=f"删除群 {group_id} 命令 {command} 的覆盖配置"
             )
+            # 使权限检查的群级别覆盖缓存立即失效
+            if hasattr(self, '_permission_checker') and self._permission_checker:
+                await self._permission_checker.invalidate_cache(command=command, group_id=group_id)
             return jsonify({"status": "success"})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
@@ -1938,6 +1947,9 @@ class WebMixin:
                 change_type="import",
                 details=f"导入 {len(permissions_data)} 条命令权限配置"
             )
+            # 批量导入会影响多条命令配置，清空全部缓存确保新配置实时生效
+            if hasattr(self, '_permission_checker') and self._permission_checker:
+                await self._permission_checker.invalidate_cache()
             return jsonify({"status": "success", "imported": len(permissions_data)})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
