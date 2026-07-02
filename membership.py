@@ -450,13 +450,18 @@ class MembershipMixin:
         initial_read_num = await self._get_group_notice_read_num(group_id)
         logger.info(f"[GroupMgr] 进群确认: 当前群公告阅读数={initial_read_num}")
 
+        # 获取群成员数
+        member_count = await self._get_group_member_count(group_id)
+        logger.info(f"[GroupMgr] 进群确认: 当前群成员数={member_count}")
+
         # 发送提醒消息
         message_template = self._cfg_str(
             "join_ban_confirm_message",
-            "欢迎 {name} 加入本群！\n\n请阅读置顶群公告并点击「确认收到」按钮，禁言将自动解除。\n\n注意：未确认前将无法发送消息。",
+            "欢迎 {name} 加入本群！\n\n你是当前群里第 {member_count} 位成员！\n\n请阅读置顶群公告并点击「确认收到」按钮，禁言将自动解除。\n\n注意：未确认前将无法发送消息。",
             group_id=group_id
         )
-        message = message_template.replace("{name}", nickname).replace("{uid}", user_id).replace("{group}", group_id)
+        # 替换变量，{at} 使用 CQ 码 @用户
+        message = message_template.replace("{at}", f"[CQ:at,qq={user_id}]").replace("{name}", nickname).replace("{uid}", user_id).replace("{group}", group_id).replace("{member_count}", str(member_count))
 
         try:
             result = await client.call_action("send_group_msg", group_id=gid_int, message=message)
@@ -495,6 +500,28 @@ class MembershipMixin:
                 return self._safe_int(read_num, 0)
         except Exception as e:
             logger.warning(f"[GroupMgr] 获取群公告阅读数失败: {e}")
+        
+        return 0
+
+    async def _get_group_member_count(self, group_id: str) -> int:
+        """获取群成员数量"""
+        client = await self._get_client()
+        if not client:
+            return 0
+        
+        gid_int = self._safe_int(group_id, 0)
+        if not gid_int:
+            return 0
+        
+        try:
+            result = await client.call_action('get_group_info', group_id=gid_int)
+            result = self._extract_data_result(result)
+            # 从 data 字段提取 member_count
+            if isinstance(result, dict):
+                member_count = result.get('member_count', 0)
+                return self._safe_int(member_count, 0)
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 获取群成员数量失败: {e}")
         
         return 0
 

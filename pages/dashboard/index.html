@@ -669,6 +669,51 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           </div>
         </div>
         <div class="card"><div class="card-header"><h2>已有规则</h2></div><div class="settings-list" id="joinRuleList"><p class="empty">加载中...</p></div></div>
+        
+        <!-- 进群确认功能配置 -->
+        <div class="card">
+          <div class="card-header"><h2>进群确认功能</h2></div>
+          <div class="settings-list" style="padding:14px 16px">
+            <p class="rules-subtle" style="margin-bottom:10px">新成员进群后自动禁言，要求阅读群公告并确认后才能发言。需在「设置 → 功能开关」开启「进群确认公告功能」。</p>
+            
+            <!-- 功能开关 -->
+            <div class="setting-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+              <div>
+                <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary)">启用进群确认</div>
+                <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-top:2px">开启后新成员进群会被自动禁言，确认群公告后自动解禁</div>
+              </div>
+              <label class="lin-toggle">
+                <input type="checkbox" id="joinBanConfirmEnabled" />
+                <span class="lin-toggle-track"></span>
+              </label>
+            </div>
+            
+            <!-- 禁言时长 -->
+            <div class="setting-item" style="padding:12px 0;border-bottom:1px solid var(--border)">
+              <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px">禁言时长（秒）</div>
+              <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">进群后自动禁言的时长，默认 2592000 秒（30天）</div>
+              <input class="input-sm" id="joinBanConfirmDuration" type="number" style="width:200px" />
+            </div>
+            
+            <!-- 消息模板 -->
+            <div class="setting-item" style="padding:12px 0;border-bottom:1px solid var(--border)">
+              <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px">提醒消息模板</div>
+              <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+                支持变量：<code>{at}</code> @用户、<code>{name}</code> 用户昵称、<code>{uid}</code> QQ号、<code>{group}</code> 群号
+              </div>
+              <textarea class="input-md" id="joinBanConfirmMessage" style="width:100%;min-height:100px;font-family:monospace"></textarea>
+              <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                <button class="btn btn-ghost btn-sm" id="btnPreviewJoinMsg">预览消息</button>
+                <span class="rules-subtle" id="joinMsgPreview"></span>
+              </div>
+            </div>
+            
+            <!-- 保存按钮 -->
+            <div style="margin-top:12px">
+              <button class="btn btn-primary btn-sm" id="btnSaveJoinConfirmConfig">保存配置</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="tab-panel" id="tab-perms">
@@ -2922,6 +2967,55 @@ async function loadJoinRules() {
       $('#jrReason').value = r.reject_reason || '';
     });
   });
+  
+  // 加载进群确认配置
+  loadJoinConfirmConfig();
+}
+
+// 加载进群确认功能配置
+async function loadJoinConfirmConfig() {
+  await loadConfigCached(true);
+  
+  // 功能开关
+  var enabled = CONFIG.join_ban_confirm_enabled || false;
+  $('#joinBanConfirmEnabled').checked = enabled;
+  
+  // 禁言时长
+  var duration = CONFIG.join_ban_confirm_duration || 2592000;
+  $('#joinBanConfirmDuration').value = duration;
+  
+  // 消息模板
+  var message = CONFIG.join_ban_confirm_message || '欢迎 {name} 加入本群！\n\n请阅读置顶群公告并点击「确认收到」按钮，禁言将自动解除。\n\n注意：未确认前将无法发送消息。';
+  $('#joinBanConfirmMessage').value = message;
+}
+
+// 保存进群确认功能配置
+async function saveJoinConfirmConfig() {
+  var config = {
+    join_ban_confirm_enabled: $('#joinBanConfirmEnabled').checked,
+    join_ban_confirm_duration: parseInt($('#joinBanConfirmDuration').value) || 2592000,
+    join_ban_confirm_message: $('#joinBanConfirmMessage').value
+  };
+  
+  var r = await safePost('config', config);
+  if (isApiError(r)) {
+    toast('保存配置失败: ' + apiErrMsg(r, ''), 'error');
+    return;
+  }
+  toast('已保存进群确认配置', 'success');
+}
+
+// 预览进群确认消息
+function previewJoinMessage() {
+  var template = $('#joinBanConfirmMessage').value;
+  var preview = template
+    .replace(/\{at\}/g, '@[用户]')
+    .replace(/\{name\}/g, '示例用户')
+    .replace(/\{uid\}/g, '123456789')
+    .replace(/\{group\}/g, '987654321')
+    .replace(/\{member_count\}/g, '779');
+  
+  $('#joinMsgPreview').textContent = '预览: ' + preview;
 }
 async function saveJoinRule() {
   var r = await safePost('join_rules/save', {
@@ -3434,6 +3528,8 @@ async function init() {
   bindClick('btnSaveSettings', saveSettings);
   bindClick('btnRefreshJoin', loadJoinRules);
   bindClick('btnSaveJoinRule', saveJoinRule);
+  bindClick('btnSaveJoinConfirmConfig', saveJoinConfirmConfig);
+  bindClick('btnPreviewJoinMsg', previewJoinMessage);
   bindClick('btnRefreshPerms', function() { loadSuperAdmins(); loadGrants(); loadBlocks(); });
   bindClick('btnRefreshCmdList', loadCmdList);
   bindClick('btnExportCmdList', exportCmdList);
