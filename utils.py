@@ -71,6 +71,37 @@ class UtilitiesMixin:
                     return str(getattr(seg, "id", "") or "")
         return ""
 
+    def _extract_plain_text(self, event) -> str:
+        """提取消息事件中的纯文本内容（仅拼接 text 段，忽略 @/回复/图片等段）。
+
+        用于入群审核回复判定：当管理员「@机器人 通过」时，event.message_str 可能
+        含 @ 前缀导致 startswith("通过") 失败，这里只取 text 段保证关键字命中。
+
+        Args:
+            event: 消息事件对象
+
+        Returns:
+            str: 去除首尾空白后的纯文本
+        """
+        try:
+            chain = event.get_messages() or []
+        except Exception:
+            chain = []
+        parts = []
+        for seg in chain:
+            if isinstance(seg, dict):
+                if seg.get("type") == "text":
+                    parts.append((seg.get("data", {}) or {}).get("text", ""))
+            else:
+                seg_type = getattr(seg, "type", "") or type(seg).__name__
+                if seg_type == "text" or seg_type == "Text":
+                    data = getattr(seg, "data", None)
+                    if isinstance(data, dict):
+                        parts.append(data.get("text", ""))
+                    else:
+                        parts.append(str(getattr(seg, "text", "") or ""))
+        return "".join(parts).strip()
+
     def _sync_astrbot_admins(self) -> None:
         # 从 AstrBot 主配置读取 admin_id，补充到插件管理员名单（DB managed_lists + 内存），统一管理员来源。
         try:
@@ -499,6 +530,10 @@ class UtilitiesMixin:
 
     def _format_message_content(self, raw_message) -> str:
         # 将 OneBot 消息链（segment 列表）按 type 分派到 _SEG_FORMATTERS，拼接为纯文本供审核规则匹配。
+        # 注意: AstrBot 的 message_obj.message 是 BaseMessageComponent 对象列表（不是 dict 列表），
+        # 需先调用 toDict() 转为标准 OneBot 段字典。否则 str(seg) 会把对象所有字段（如 Reply 的
+        # chain/message_str/text，即被引用消息的完整内容）都序列化出来，导致引用消息原文被
+        # 算进当前发言者长度，触发长文本/重复消息等刷屏误判。
         if raw_message is None:
             return '[空消息]'
         if not isinstance(raw_message, list):
@@ -506,8 +541,19 @@ class UtilitiesMixin:
         parts = []
         for seg in raw_message:
             if not isinstance(seg, dict):
-                parts.append(str(seg))
-                continue
+                # BaseMessageComponent 对象（Plain/At/Reply/Image 等）：
+                # 优先调用 toDict() 转为标准 OneBot 段字典，避免 str(seg) 把对象全部字段
+                # （特别是 Reply 的 chain/message_str）序列化进文本。
+                to_dict_fn = getattr(seg, 'toDict', None)
+                if callable(to_dict_fn):
+                    try:
+                        seg = to_dict_fn()
+                    except Exception:
+                        parts.append(f"[{type(seg).__name__}]")
+                        continue
+                else:
+                    parts.append(str(seg))
+                    continue
             t = seg.get('type', '')
             d = seg.get('data', {}) or {}
             formatter = self._SEG_FORMATTERS.get(t)

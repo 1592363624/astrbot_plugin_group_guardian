@@ -179,6 +179,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 .log-table th{background:var(--info-light);padding:8px 10px;text-align:left;font-weight:500;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap}
 .log-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 .log-table tr:hover td{background:var(--info-light)}
+/* 滚动容器内的表头固定：sticky 定位使 thead 在垂直滚动时保持可见 */
+.rules-table-wrap .log-table thead th{position:sticky;top:0;z-index:10;background:var(--info-light)}
 .reason-cell{max-width:150px;font-size:11px;color:var(--text-muted)}
 .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
 .badge-danger{background:var(--danger-light);color:var(--danger)}
@@ -192,12 +194,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 .setting-info{flex:1;min-width:0}
 .setting-label{font-size:13px;font-weight:500}
 .setting-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
-.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0;display:inline-block}
 .toggle input{opacity:0;width:0;height:0}
-.toggle .slider{position:absolute;inset:0;background:#d1d5db;border-radius:20px;transition:.2s;cursor:pointer}
-.toggle .slider::before{content:"";position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.1)}
-.toggle input:checked+.slider{background:var(--primary)}
-.toggle input:checked+.slider::before{transform:translateX(16px)}
+.toggle .slider,.toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:20px;transition:.2s;cursor:pointer}
+.toggle .slider::before,.toggle-slider::before{content:"";position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.toggle input:checked+.slider,.toggle input:checked+.toggle-slider{background:var(--primary)}
+.toggle input:checked+.slider::before,.toggle input:checked+.toggle-slider::before{transform:translateX(16px)}
+.sortable-th{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable-th:hover{color:var(--primary)}
+.sortable-th::after{content:"";display:inline-block;width:0;height:0;margin-left:4px;vertical-align:middle;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid currentColor;opacity:.3}
+.sortable-th.sort-asc::after{opacity:1;border-top:none;border-bottom:4px solid currentColor}
+.sortable-th.sort-desc::after{opacity:1;border-top:4px solid currentColor}
 .list-manage{padding:16px}
 .list-section{margin-bottom:20px}
 .list-section:last-child{margin-bottom:0}
@@ -432,6 +439,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>权限管理</span>
         </a>
+        <a class="nav-item" data-tab="cmdlist">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+          <span>指令列表</span>
+        </a>
         <a class="nav-item" data-tab="groupcfg">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm13 0h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3z"/></svg>
           <span>多群配置</span>
@@ -658,6 +669,51 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           </div>
         </div>
         <div class="card"><div class="card-header"><h2>已有规则</h2></div><div class="settings-list" id="joinRuleList"><p class="empty">加载中...</p></div></div>
+        
+        <!-- 进群确认功能配置 -->
+        <div class="card">
+          <div class="card-header"><h2>进群确认功能</h2></div>
+          <div class="settings-list" style="padding:14px 16px">
+            <p class="rules-subtle" style="margin-bottom:10px">新成员进群后自动禁言，要求阅读群公告并确认后才能发言。需在「设置 → 功能开关」开启「进群确认公告功能」。</p>
+            
+            <!-- 功能开关 -->
+            <div class="setting-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+              <div>
+                <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary)">启用进群确认</div>
+                <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-top:2px">开启后新成员进群会被自动禁言，确认群公告后自动解禁</div>
+              </div>
+              <label class="lin-toggle">
+                <input type="checkbox" id="joinBanConfirmEnabled" />
+                <span class="lin-toggle-track"></span>
+              </label>
+            </div>
+            
+            <!-- 禁言时长 -->
+            <div class="setting-item" style="padding:12px 0;border-bottom:1px solid var(--border)">
+              <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px">禁言时长（秒）</div>
+              <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">进群后自动禁言的时长，默认 2592000 秒（30天）</div>
+              <input class="input-sm" id="joinBanConfirmDuration" type="number" style="width:200px" />
+            </div>
+            
+            <!-- 消息模板 -->
+            <div class="setting-item" style="padding:12px 0;border-bottom:1px solid var(--border)">
+              <div class="setting-label" style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px">提醒消息模板</div>
+              <div class="setting-desc" style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+                支持变量：<code>{at}</code> @用户、<code>{name}</code> 用户昵称、<code>{uid}</code> QQ号、<code>{group}</code> 群号
+              </div>
+              <textarea class="input-md" id="joinBanConfirmMessage" style="width:100%;min-height:100px;font-family:monospace"></textarea>
+              <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                <button class="btn btn-ghost btn-sm" id="btnPreviewJoinMsg">预览消息</button>
+                <span class="rules-subtle" id="joinMsgPreview"></span>
+              </div>
+            </div>
+            
+            <!-- 保存按钮 -->
+            <div style="margin-top:12px">
+              <button class="btn btn-primary btn-sm" id="btnSaveJoinConfirmConfig">保存配置</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="tab-panel" id="tab-perms">
@@ -689,6 +745,60 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
             <p class="rules-subtle" style="margin-bottom:8px">移除某群管在指定群的 bot 管理权限（优先级最高）。</p>
             <div class="list-add-row"><input class="input-sm" id="abGroup" placeholder="群号(可多个,逗号分隔)" /><input class="input-sm" id="abUser" placeholder="QQ号(可多个,逗号分隔)" /><button class="btn btn-danger btn-sm" id="btnAddBlock">移除其权限</button></div>
             <div class="list-items" id="blockList"><p class="empty">暂无</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-cmdlist">
+        <div class="page-header">
+          <h1>指令列表</h1>
+          <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" id="btnRefreshCmdList">刷新</button>
+            <button class="btn btn-outline btn-sm" id="btnExportCmdList">导出配置</button>
+            <button class="btn btn-outline btn-sm" id="btnImportCmdList">导入配置</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>命令权限配置</h2>
+            <div class="header-actions">
+              <select class="input-sm" id="cmdListCategory" style="width:120px"><option value="">全部分类</option></select>
+              <select class="input-sm" id="cmdListEnabled" style="width:100px"><option value="">全部状态</option><option value="1">已启用</option><option value="0">已禁用</option></select>
+              <input class="input-sm" id="cmdListSearch" placeholder="搜索命令..." style="width:150px" />
+            </div>
+          </div>
+          <div class="list-manage">
+            <p class="rules-subtle" style="margin-bottom:8px">配置各命令的访问权限。数值越小权限越高：0=插件管理员，1=群超管，2=群主，3=群管理员，4=所有成员。</p>
+            <div class="rules-table-wrap" style="max-height:500px;overflow-y:auto">
+              <table class="log-table" id="cmdListTable">
+                <thead><tr><th style="width:40px">#</th><th class="sortable-th" data-sort="command">命令</th><th class="sortable-th" data-sort="category">分类</th><th class="sortable-th" data-sort="description">描述</th><th class="sortable-th" data-sort="permission_level">权限级别</th><th class="sortable-th" data-sort="enabled">启用</th><th class="sortable-th" data-sort="allow_group_override">允许群覆盖</th></tr></thead>
+                <tbody id="cmdListBody"><tr><td colspan="7" class="empty">点击刷新加载命令列表</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>群级别命令权限覆盖</h2></div>
+          <div class="list-manage">
+            <p class="rules-subtle" style="margin-bottom:8px">为特定群设置不同的命令权限。需先在上方配置中启用「允许群覆盖」。</p>
+            <div class="list-add-row">
+              <input class="input-sm" id="cmdListGroup" placeholder="群号" style="width:120px" />
+              <button class="btn btn-primary btn-sm" id="btnLoadCmdListGroup">加载该群配置</button>
+            </div>
+            <div id="cmdListGroupContainer" style="display:none">
+              <div class="rules-table-wrap" style="max-height:300px;overflow-y:auto;margin-top:8px">
+                <table class="log-table">
+                  <thead><tr><th>命令</th><th>权限级别</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody id="cmdListGroupBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>权限变更日志</h2></div>
+          <div class="log-container" style="max-height:300px;overflow-y:auto" id="cmdListLogContainer">
+            <p class="empty">点击刷新加载日志</p>
           </div>
         </div>
       </div>
@@ -828,6 +938,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
     <a class="mobile-nav-item" data-tab="perms">
       <svg viewBox="0 0 24 24"><path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.4-8 4v2h16v-2c0-2.6-5.3-4-8-4zm7-5V7h-2V5h2V3h2v2h2v2h-2v2h-2z"/></svg>
       <span>权限</span>
+    </a>
+    <a class="mobile-nav-item" data-tab="cmdlist">
+      <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      <span>指令</span>
     </a>
     <a class="mobile-nav-item" data-tab="groupcfg">
       <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4V4zm0 6h10v4H4v-4zm0 6h16v4H4v-4zm12-6h4v4h-4v-4z"/></svg>
@@ -1120,6 +1234,7 @@ function switchTab(tabName) {
   if (tabName === 'rules') { renderRuleCenterShell(); loadRuleCenter(); }
   if (tabName === 'join') loadJoinRules();
   if (tabName === 'perms') { loadSuperAdmins(); loadGrants(); loadBlocks(); }
+  if (tabName === 'cmdlist') { loadCmdList(); }
   if (tabName === 'groupcfg') loadGroupCfgGroups();
   if (tabName === 'tasks') { loadAppeals(); loadUnbans(); }
   if (tabName === 'settings') loadSettings();
@@ -2852,6 +2967,55 @@ async function loadJoinRules() {
       $('#jrReason').value = r.reject_reason || '';
     });
   });
+  
+  // 加载进群确认配置
+  loadJoinConfirmConfig();
+}
+
+// 加载进群确认功能配置
+async function loadJoinConfirmConfig() {
+  await loadConfigCached(true);
+  
+  // 功能开关
+  var enabled = CONFIG.join_ban_confirm_enabled || false;
+  $('#joinBanConfirmEnabled').checked = enabled;
+  
+  // 禁言时长
+  var duration = CONFIG.join_ban_confirm_duration || 2592000;
+  $('#joinBanConfirmDuration').value = duration;
+  
+  // 消息模板
+  var message = CONFIG.join_ban_confirm_message || '欢迎 {name} 加入本群！\n\n请阅读置顶群公告并点击「确认收到」按钮，禁言将自动解除。\n\n注意：未确认前将无法发送消息。';
+  $('#joinBanConfirmMessage').value = message;
+}
+
+// 保存进群确认功能配置
+async function saveJoinConfirmConfig() {
+  var config = {
+    join_ban_confirm_enabled: $('#joinBanConfirmEnabled').checked,
+    join_ban_confirm_duration: parseInt($('#joinBanConfirmDuration').value) || 2592000,
+    join_ban_confirm_message: $('#joinBanConfirmMessage').value
+  };
+  
+  var r = await safePost('config', config);
+  if (isApiError(r)) {
+    toast('保存配置失败: ' + apiErrMsg(r, ''), 'error');
+    return;
+  }
+  toast('已保存进群确认配置', 'success');
+}
+
+// 预览进群确认消息
+function previewJoinMessage() {
+  var template = $('#joinBanConfirmMessage').value;
+  var preview = template
+    .replace(/\{at\}/g, '@[用户]')
+    .replace(/\{name\}/g, '示例用户')
+    .replace(/\{uid\}/g, '123456789')
+    .replace(/\{group\}/g, '987654321')
+    .replace(/\{member_count\}/g, '779');
+  
+  $('#joinMsgPreview').textContent = '预览: ' + preview;
 }
 async function saveJoinRule() {
   var r = await safePost('join_rules/save', {
@@ -3114,6 +3278,237 @@ function renderGroupCfgItems(items) {
   });
 }
 
+// 指令列表 Tab
+var CMD_LIST_CACHE = [];
+var CMD_LIST_LEVELS = {'-1': '未配置（需设置）', 0: '插件管理员', 1: '群超管', 2: '群主', 3: '群管理员', 4: '所有成员'};
+var CMD_LIST_CATEGORIES = ['审核管理', '群管理', '成员管理', '信息查询', '批量操作', '插件配置', '消息撤回', '其他'];
+
+async function loadCmdList() {
+  var body = document.getElementById('cmdListBody');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="7" class="empty">加载中...</td></tr>';
+  var category = ($('#cmdListCategory') || {}).value || '';
+  var enabled = ($('#cmdListEnabled') || {}).value || '';
+  var params = {};
+  if (category) params.category = category;
+  if (enabled !== '') params.enabled = enabled;
+  var res = await safeGet('command_permissions', params);
+  if (isApiError(res)) { body.innerHTML = '<tr><td colspan="7" class="empty">加载失败：' + esc(res.message || '') + '</td></tr>'; return; }
+  CMD_LIST_CACHE = res || [];
+  renderCmdList(CMD_LIST_CACHE);
+  // 更新分类下拉框
+  var catSelect = $('#cmdListCategory');
+  if (catSelect && catSelect.options.length <= 1) {
+    CMD_LIST_CATEGORIES.forEach(function(c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      catSelect.appendChild(opt);
+    });
+  }
+  // 加载变更日志
+  loadCmdListLogs();
+}
+
+var CMD_LIST_SORT_KEY = 'command';
+var CMD_LIST_SORT_ASC = true;
+
+function renderCmdList(list) {
+  var body = document.getElementById('cmdListBody');
+  if (!body) return;
+  var search = ($('#cmdListSearch') || {}).value || '';
+  if (search) {
+    var s = search.toLowerCase();
+    list = list.filter(function(p) {
+      return (p.command || '').toLowerCase().includes(s) || (p.description || '').toLowerCase().includes(s) || (p.category || '').toLowerCase().includes(s);
+    });
+  }
+  // 排序
+  list.sort(function(a, b) {
+    var va = a[CMD_LIST_SORT_KEY], vb = b[CMD_LIST_SORT_KEY];
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (va < vb) return CMD_LIST_SORT_ASC ? -1 : 1;
+    if (va > vb) return CMD_LIST_SORT_ASC ? 1 : -1;
+    return 0;
+  });
+  if (!list.length) { body.innerHTML = '<tr><td colspan="7" class="empty">暂无命令权限配置</td></tr>'; return; }
+  body.innerHTML = list.map(function(p, i) {
+    return '<tr data-cmd="' + escAttr(p.command) + '">' +
+      '<td style="color:var(--text-muted);font-size:12px">' + (i + 1) + '</td>' +
+      '<td><strong>' + esc(p.command) + '</strong></td>' +
+      '<td>' + esc(p.category || '') + '</td>' +
+      '<td>' + esc(p.description || '') + '</td>' +
+      '<td><select class="input-sm cmd-list-level" data-cmd="' + escAttr(p.command) + '" style="width:120px">' +
+        Object.keys(CMD_LIST_LEVELS).map(function(k) {
+          return '<option value="' + k + '"' + (p.permission_level == k ? ' selected' : '') + '>' + CMD_LIST_LEVELS[k] + '</option>';
+        }).join('') + '</select></td>' +
+      '<td><label class="toggle"><input type="checkbox" class="cmd-list-toggle-cb" data-cmd="' + escAttr(p.command) + '"' + (p.enabled ? ' checked' : '') + ' /><span class="slider"></span></label></td>' +
+      '<td><label class="toggle"><input type="checkbox" class="cmd-list-override" data-cmd="' + escAttr(p.command) + '"' + (p.allow_group_override ? ' checked' : '') + ' /><span class="slider"></span></label></td></tr>';
+  }).join('');
+  // 下拉框变更自动保存
+  $$('.cmd-list-level', body).forEach(function(sel) {
+    sel.addEventListener('change', function() { autoSaveCmdList(sel.dataset.cmd); });
+  });
+  // 启用/覆盖开关自动保存
+  $$('.cmd-list-toggle-cb, .cmd-list-override', body).forEach(function(cb) {
+    cb.addEventListener('change', function() { autoSaveCmdList(cb.dataset.cmd); });
+  });
+  // 表头排序样式更新
+  $$('.sortable-th').forEach(function(th) {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === CMD_LIST_SORT_KEY) {
+      th.classList.add(CMD_LIST_SORT_ASC ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
+
+async function autoSaveCmdList(command) {
+  var levelSel = document.querySelector('.cmd-list-level[data-cmd="' + command + '"]');
+  var toggleCb = document.querySelector('.cmd-list-toggle-cb[data-cmd="' + command + '"]');
+  var overrideCb = document.querySelector('.cmd-list-override[data-cmd="' + command + '"]');
+  var r = await safePost('command_permissions/save', {
+    command: command,
+    permission_level: levelSel ? parseInt(levelSel.value) : undefined,
+    enabled: toggleCb ? (toggleCb.checked ? 1 : 0) : undefined,
+    allow_group_override: overrideCb ? overrideCb.checked : undefined
+  });
+  if (apiCallFailed(r)) { toast('保存失败: ' + (r.message || ''), 'error'); return; }
+  toast(command + ' 已保存', 'success');
+}
+
+async function loadCmdListGroup() {
+  var groupId = ($('#cmdListGroup') || {}).value || '';
+  if (!groupId) { toast('请输入群号', 'error'); return; }
+  var container = document.getElementById('cmdListGroupContainer');
+  var body = document.getElementById('cmdListGroupBody');
+  if (!container || !body) return;
+  container.style.display = '';
+  body.innerHTML = '<tr><td colspan="4" class="empty">加载中...</td></tr>';
+  var res = await safeGet('command_permissions/group', { group_id: groupId });
+  if (isApiError(res)) { body.innerHTML = '<tr><td colspan="4" class="empty">加载失败：' + esc(res.message || '') + '</td></tr>'; return; }
+  var list = res || [];
+  if (!list.length) { body.innerHTML = '<tr><td colspan="4" class="empty">该群暂无命令权限覆盖配置</td></tr>'; return; }
+  body.innerHTML = list.map(function(p) {
+    return '<tr>' +
+      '<td><strong>' + esc(p.command) + '</strong></td>' +
+      '<td><select class="input-sm grp-cmd-level" data-cmd="' + escAttr(p.command) + '" style="width:100px">' +
+        Object.keys(CMD_LIST_LEVELS).map(function(k) {
+          return '<option value="' + k + '"' + (p.permission_level == k ? ' selected' : '') + '>' + CMD_LIST_LEVELS[k] + '</option>';
+        }).join('') + '</select></td>' +
+      '<td>' + (p.enabled ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-default">禁用</span>') + '</td>' +
+      '<td><button class="btn btn-primary btn-sm grp-cmd-save" data-cmd="' + escAttr(p.command) + '">保存</button> ' +
+        '<button class="btn btn-danger btn-sm grp-cmd-del" data-cmd="' + escAttr(p.command) + '">删除</button></td></tr>';
+  }).join('');
+  // 绑定事件
+  $$('.grp-cmd-save', body).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var levelSel = document.querySelector('.grp-cmd-level[data-cmd="' + btn.dataset.cmd + '"]');
+      if (!levelSel) return;
+      var r = await safePost('command_permissions/group/save', {
+        group_id: groupId, command: btn.dataset.cmd, permission_level: parseInt(levelSel.value), enabled: 1
+      });
+      if (apiCallFailed(r)) { toast('保存失败', 'error'); return; }
+      toast('已保存', 'success');
+      loadCmdListGroup();
+    });
+  });
+  $$('.grp-cmd-del', body).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var ok = await confirmModal({ title: '删除覆盖', body: '确认删除？', okText: '删除', danger: true });
+      if (!ok) return;
+      var r = await safePost('command_permissions/group/delete', { group_id: groupId, command: btn.dataset.cmd });
+      if (apiCallFailed(r)) { toast('删除失败', 'error'); return; }
+      toast('已删除', 'success');
+      loadCmdListGroup();
+    });
+  });
+}
+
+async function loadCmdListLogs() {
+  var container = document.getElementById('cmdListLogContainer');
+  if (!container) return;
+  container.innerHTML = '<p class="empty">加载中...</p>';
+  var res = await safeGet('command_permissions/logs', { limit: 50 });
+  if (isApiError(res) || !res || !res.length) { container.innerHTML = '<p class="empty">暂无日志</p>'; return; }
+  // 权限级别数值 → 可读名称（与后端 _perm_level_label 保持一致）
+  var levelName = function(lv) {
+    if (lv === null || lv === undefined || lv === '') return '未配置';
+    return CMD_LIST_LEVELS[lv] || ('级别' + lv);
+  };
+  // 启用状态 → 可读文本
+  var enabledText = function(en) {
+    if (en === null || en === undefined || en === '') return '未配置';
+    return en ? '启用' : '禁用';
+  };
+  // change_type → 中文动作描述
+  var changeText = {update:'修改配置', delete:'删除配置', group_override:'群覆盖配置', group_override_delete:'删除群覆盖', import:'批量导入'};
+  // Unix 时间戳 → 可读时间
+  var fmtTime = function(ts) {
+    if (!ts) return '';
+    var d = new Date(ts * 1000);
+    var pad = function(n){return n<10?'0'+n:n;};
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  };
+  container.innerHTML = res.map(function(log) {
+    var action = changeText[log.change_type] || log.change_type || '';
+    // 第一行：时间 + 操作人 + 动作 + （群号）+ 命令
+    var head = '<span class="rules-subtle">' + esc(fmtTime(log.timestamp)) + '</span> ' +
+      '<strong>' + esc(log.operator || '系统') + '</strong> ' + esc(action) +
+      (log.group_id ? '（群 ' + esc(log.group_id) + '）' : '') +
+      ' 命令 <strong>' + esc(log.command || '') + '</strong>';
+    // 第二行：结构化变更明细（旧值→新值），无结构化数据时回退到 details 文本
+    var changes = [];
+    var hasOldLevel = log.old_level !== null && log.old_level !== undefined;
+    var hasNewLevel = log.new_level !== null && log.new_level !== undefined;
+    if (hasOldLevel || hasNewLevel) {
+      if (log.old_level !== log.new_level) {
+        changes.push('权限级别: ' + levelName(log.old_level) + ' → ' + levelName(log.new_level));
+      }
+    }
+    var hasOldEn = log.old_enabled !== null && log.old_enabled !== undefined;
+    var hasNewEn = log.new_enabled !== null && log.new_enabled !== undefined;
+    if (hasOldEn || hasNewEn) {
+      if (log.old_enabled !== log.new_enabled) {
+        changes.push('启用状态: ' + enabledText(log.old_enabled) + ' → ' + enabledText(log.new_enabled));
+      }
+    }
+    var detailHtml = '';
+    if (changes.length) {
+      detailHtml = '<br><span class="rules-subtle">' + changes.map(esc).join('；') + '</span>';
+    } else if (log.details) {
+      detailHtml = '<br><span class="rules-subtle">' + esc(log.details) + '</span>';
+    }
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">' + head + detailHtml + '</div>';
+  }).join('');
+}
+
+async function exportCmdList() {
+  var res = await apiDownload('command_permissions/export', {}, 'group_guardian_cmd_permissions_' + new Date().toISOString().slice(0, 10) + '.json');
+  if (isApiError(res)) toast('导出失败', 'error');
+  else toast('导出已开始', 'success');
+}
+
+async function importCmdList() {
+  var input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.addEventListener('change', async function() {
+    var file = input.files[0];
+    if (!file) return;
+    var text = await file.text();
+    try {
+      var data = JSON.parse(text);
+      var ok = await confirmModal({ title: '导入配置', body: '将导入 <b>' + (Array.isArray(data) ? data.length : 0) + '</b> 条命令权限配置。是否覆盖已存在的配置？', okText: '覆盖导入', danger: false });
+      if (!ok) return;
+      var r = await safePost('command_permissions/import', { permissions: data, overwrite: true });
+      if (apiCallFailed(r)) { toast('导入失败: ' + (r.message || ''), 'error'); return; }
+      toast('导入成功', 'success');
+      loadCmdList();
+    } catch(e) {
+      toast('文件格式错误', 'error');
+    }
+  });
+  input.click();
+}
+
 async function init() {
   initTabs();
   if (!REBUILD_STATUS_TIMER) {
@@ -3133,7 +3528,29 @@ async function init() {
   bindClick('btnSaveSettings', saveSettings);
   bindClick('btnRefreshJoin', loadJoinRules);
   bindClick('btnSaveJoinRule', saveJoinRule);
+  bindClick('btnSaveJoinConfirmConfig', saveJoinConfirmConfig);
+  bindClick('btnPreviewJoinMsg', previewJoinMessage);
   bindClick('btnRefreshPerms', function() { loadSuperAdmins(); loadGrants(); loadBlocks(); });
+  bindClick('btnRefreshCmdList', loadCmdList);
+  bindClick('btnExportCmdList', exportCmdList);
+  bindClick('btnImportCmdList', importCmdList);
+  bindClick('btnLoadCmdListGroup', loadCmdListGroup);
+  var cmdListSearch = document.getElementById('cmdListSearch');
+  if (cmdListSearch) cmdListSearch.addEventListener('input', function() { renderCmdList(CMD_LIST_CACHE); });
+  var cmdListCategory = document.getElementById('cmdListCategory');
+  if (cmdListCategory) cmdListCategory.addEventListener('change', loadCmdList);
+  var cmdListEnabled = document.getElementById('cmdListEnabled');
+  if (cmdListEnabled) cmdListEnabled.addEventListener('change', loadCmdList);
+  // 表头排序点击
+  document.addEventListener('click', function(e) {
+    var th = e.target.closest('.sortable-th');
+    if (!th || !th.closest('#cmdListTable')) return;
+    var key = th.dataset.sort;
+    if (!key) return;
+    if (CMD_LIST_SORT_KEY === key) { CMD_LIST_SORT_ASC = !CMD_LIST_SORT_ASC; }
+    else { CMD_LIST_SORT_KEY = key; CMD_LIST_SORT_ASC = true; }
+    renderCmdList(CMD_LIST_CACHE);
+  });
   bindClick('btnAddSuperAdmin', async function() {
     var gids = ($('#saGroup').value || '').split(/[\s,，]+/).filter(Boolean);
     var uids = ($('#saUser').value || '').split(/[\s,，]+/).filter(Boolean);

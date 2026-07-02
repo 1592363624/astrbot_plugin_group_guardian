@@ -58,22 +58,29 @@ class MembershipMixin:
     async def _handle_group_request(self, event: AstrMessageEvent) -> bool:
         """加群申请审核主流程。返回 True 表示已处理（应 stop_event），False 表示未介入。"""
         if not self.config.get("disclaimer_agreed", False):
+            logger.debug("[GroupMgr] 入群审核: 未同意免责声明，跳过")
             return False
         raw = self._get_raw_event(event)
         if not isinstance(raw, dict):
+            logger.debug("[GroupMgr] 入群审核: 无法获取原始事件数据")
             return False
         group_id = str(raw.get("group_id", ""))
         user_id = str(raw.get("user_id", ""))
         flag = raw.get("flag", "")
         comment = str(raw.get("comment", "") or "")
         sub_type = raw.get("sub_type", "add")
+        logger.info(f"[GroupMgr] 入群审核: 收到申请 群={group_id} 用户={user_id} 验证信息={comment[:50]}")
         if not group_id or not flag:
+            logger.debug(f"[GroupMgr] 入群审核: 缺少必要参数 group_id={group_id} flag={flag}")
             return False
         if not self._cfg("join_audit_enabled", False, group_id=group_id):
+            logger.debug(f"[GroupMgr] 入群审核: 群 {group_id} 未启用入群审核功能")
             return False
         allowed, _reason = self._check_group_access(event)
         if not allowed:
+            logger.debug(f"[GroupMgr] 入群审核: 群访问检查失败 {_reason}")
             return False
+        logger.info(f"[GroupMgr] 入群审核: 开始处理群 {group_id} 用户 {user_id} 的申请")
         if user_id and user_id in self._user_black_set:
             await self._process_group_request(event, flag, sub_type, False, "您在黑名单中，无法加入")
             self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群拒绝", "用户黑名单", [])
@@ -113,19 +120,24 @@ class MembershipMixin:
                 return True
 
         # QQ等级自动审核：根据配置的最低等级要求自动通过或拒绝
+        # 注意：get_stranger_info 对非好友陌生人通常返回 level=0（无法获取真实等级），
+        # 因此等级为 0 时视为"未知"，跳过等级检查走默认动作，避免误拒。
         if self._cfg("join_qq_level_check_enabled", False, group_id=group_id):
             min_level = self._cfg_int("join_qq_level_min", 0, group_id=group_id)
             if min_level > 0:
                 # 获取申请人QQ等级
-                _, qq_level = await self._get_user_info(user_id)
-                if qq_level >= min_level:
+                nickname, qq_level = await self._get_user_info(user_id)
+                if qq_level == 0:
+                    # 等级未知（陌生人API通常返回0），跳过等级检查，走默认动作
+                    logger.debug(f"[GroupMgr] QQ等级获取为0（未知），跳过等级检查: {user_id}")
+                elif qq_level >= min_level:
                     # 等级达标，自动通过
                     await self._process_group_request(event, flag, sub_type, True, "")
                     self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群通过", f"QQ等级达标({qq_level}>={min_level})", [])
                     await self._notify_join_audit(group_id, user_id, comment, True, f"QQ等级{qq_level}>=要求{min_level}")
                     return True
                 else:
-                    # 等级不足，自动拒绝
+                    # 等级确实不足（获取到了非零值但低于阈值），自动拒绝
                     reason = rule.get("reject_reason", "") or f"QQ等级不足(需要{min_level}级)"
                     await self._process_group_request(event, flag, sub_type, False, reason)
                     self._log_moderation(group_id, user_id, "", f"[加群申请] {comment}", "入群拒绝", f"QQ等级不足({qq_level}<{min_level})", [])
@@ -178,6 +190,7 @@ class MembershipMixin:
         """
         gid_int = self._safe_int(group_id, 0)
         if not gid_int:
+            logger.warning(f"[GroupMgr] 发送待审通知失败: 群号无效 group_id={group_id}")
             return
         try:
             # 获取申请人信息（昵称和QQ等级）
@@ -191,35 +204,51 @@ class MembershipMixin:
                 f"验证信息: {comment[:100] if comment else '无'}\n"
                 f"请管理员引用此消息回复「通过」或「拒绝 [原因]」进行审核"
             )
+            logger.info(f"[GroupMgr] 准备发送待审通知到群 {group_id}，申请人 {nickname}({user_id})")
             client = await self._get_client()
             if not client:
+                logger.warning(f"[GroupMgr] 发送待审通知失败: 无法获取 OneBot client")
                 return
             # 发送通知到群
+            logger.info(f"[GroupMgr] 调用 send_group_msg: group_id={gid_int}, message长度={len(text)}")
             result = await client.call_action("send_group_msg", group_id=gid_int, message=text)
+            logger.info(f"[GroupMgr] send_group_msg 返回: {result}")
             result = self._extract_data_result(result)
             # 提取发送成功的消息 ID
             msg_id = ""
             if isinstance(result, dict):
                 msg_id = str(result.get("message_id", "") or result.get("id", ""))
             if not msg_id:
-                logger.debug(f"[GroupMgr] 发送待审通知失败: 无法获取 message_id")
+                logger.warning(f"[GroupMgr] 发送待审通知失败: 无法获取 message_id, result={result}")
                 return
             # 存储待审请求信息，供管理员引用回复时使用
             pending_key = f"{group_id}:{msg_id}"
+            now_ts = int(time.time())
             self._pending_join_requests[pending_key] = {
                 "user_id": user_id,
                 "flag": flag,
                 "sub_type": sub_type,
                 "comment": comment,
                 "nickname": nickname,
-                "timestamp": int(time.time()),
+                "timestamp": now_ts,
             }
+            # 同步写入 DB，保证机器人重启后引用回复审核依然可用
+            try:
+                self._storage.save_pending_join_request(
+                    pending_key, group_id, user_id, flag, sub_type, comment, nickname, now_ts
+                )
+            except Exception as ex:
+                logger.debug(f"[GroupMgr] 待审请求写 DB 失败: {ex}")
             # 限制待审请求数量，防止内存泄漏（保留最近 100 条）
             if len(self._pending_join_requests) > 100:
                 # 按时间戳排序，删除最旧的
                 sorted_items = sorted(self._pending_join_requests.items(), key=lambda x: x[1].get("timestamp", 0))
                 for old_key, _ in sorted_items[:20]:
                     del self._pending_join_requests[old_key]
+                    try:
+                        self._storage.delete_pending_join_request(old_key)
+                    except Exception:
+                        pass
             logger.debug(f"[GroupMgr] 已存储待审请求: {pending_key}")
         except Exception as e:
             logger.debug(f"[GroupMgr] 发送待审通知失败: {e}")
@@ -244,7 +273,7 @@ class MembershipMixin:
             result = self._extract_data_result(result)
             if isinstance(result, dict):
                 nickname = result.get("nickname", "") or result.get("name", "") or user_id
-                qq_level = self._safe_int(result.get("level", 0), 0)
+                qq_level = self._safe_int(result.get("qqLevel", result.get("level", 0)), 0)
                 return nickname, qq_level
         except Exception as e:
             logger.debug(f"[GroupMgr] 获取用户信息失败: {e}")
@@ -268,6 +297,7 @@ class MembershipMixin:
             return False
         # 检查操作者是否为管理员
         if not await self._is_admin(event):
+            logger.debug(f"[GroupMgr] 入群审核回复: 操作者非管理员，跳过")
             return False
         # 获取被回复消息的 ID
         reply_msg_id = self._get_reply_message_id(event)
@@ -277,9 +307,13 @@ class MembershipMixin:
         pending_key = f"{group_id}:{reply_msg_id}"
         pending_info = self._pending_join_requests.get(pending_key)
         if not pending_info:
+            logger.debug(f"[GroupMgr] 入群审核回复: 未找到待审请求 {pending_key}（可能已处理或重启前未持久化）")
             return False
-        # 获取回复内容
-        reply_text = event.message_str.strip()
+        # 获取回复内容：只取 text 段，避免 @机器人 前缀导致关键字命中失败
+        reply_text = self._extract_plain_text(event)
+        if not reply_text:
+            # 回退到 message_str，兼容部分适配器
+            reply_text = (event.message_str or "").strip()
         if not reply_text:
             return False
         # 解析审核动作
@@ -295,13 +329,18 @@ class MembershipMixin:
                 reject_reason = "管理员拒绝"
         else:
             # 不是审核指令，不处理
+            logger.debug(f"[GroupMgr] 入群审核回复: 回复内容「{reply_text[:30]}」不是审核指令，跳过")
             return False
         # 从存储中获取待审请求信息
         user_id = pending_info.get("user_id", "")
         flag = pending_info.get("flag", "")
         sub_type = pending_info.get("sub_type", "add")
-        # 移除已处理的待审请求
+        # 移除已处理的待审请求（内存 + DB 同步删除）
         del self._pending_join_requests[pending_key]
+        try:
+            self._storage.delete_pending_join_request(pending_key)
+        except Exception as ex:
+            logger.debug(f"[GroupMgr] 删除待审请求 DB 记录失败: {ex}")
         # 执行审核操作
         try:
             await self._process_group_request(event, flag, sub_type, approve, reject_reason)
@@ -313,10 +352,13 @@ class MembershipMixin:
                                  action_text, reason_text, [])
             # 发送审核结果通知
             operator_id = self._try_get_sender_id(event)
+            operator_nickname = self._try_get_sender_nickname(event)
+            operator_display = f"{operator_nickname}({operator_id})" if operator_nickname else operator_id
+            nickname = pending_info.get("nickname", "") or user_id
             if approve:
-                notice = f"[入群审核] {user_id} 的申请已被 {operator_id} 通过"
+                notice = f"[入群审核] {nickname}({user_id}) 的申请已通过\n操作人: {operator_display}"
             else:
-                notice = f"[入群审核] {user_id} 的申请已被 {operator_id} 拒绝\n原因: {reject_reason}"
+                notice = f"[入群审核] {nickname}({user_id}) 的申请已被拒绝\n操作人: {operator_display}\n拒绝原因: {reject_reason}"
             # 发送通知到群
             gid_int = self._safe_int(group_id, 0)
             if gid_int:
@@ -342,3 +384,145 @@ class MembershipMixin:
         except Exception as e:
             logger.warning(f"[GroupMgr] 处理加群申请失败: {e}")
             return False
+
+    # ============================================================
+    # 进群确认公告功能
+    # ============================================================
+    def _is_group_increase_event(self, event: AstrMessageEvent) -> bool:
+        """判断是否为成员进群事件"""
+        raw = self._get_raw_event(event)
+        if not isinstance(raw, dict):
+            return False
+        return (raw.get("post_type") == "notice"
+                and raw.get("notice_type") == "group_increase"
+                and raw.get("sub_type") in ("approve", "invite"))
+
+    async def _handle_group_increase(self, event: AstrMessageEvent) -> bool:
+        """处理成员进群事件：自动禁言并发送确认提醒，记录群公告阅读数"""
+        if not self.config.get("disclaimer_agreed", False):
+            return False
+
+        raw = self._get_raw_event(event)
+        if not isinstance(raw, dict):
+            return False
+
+        group_id = str(raw.get("group_id", ""))
+        user_id = str(raw.get("user_id", ""))
+
+        if not group_id or not user_id:
+            return False
+
+        # 检查该群是否启用进群确认功能
+        if not self._cfg("join_ban_confirm_enabled", False, group_id=group_id):
+            return False
+
+        # 检查群访问权限
+        allowed, _reason = self._check_group_access(event)
+        if not allowed:
+            return False
+
+        logger.info(f"[GroupMgr] 进群确认: 群={group_id} 用户={user_id} 进群，准备禁言并发送提醒")
+
+        # 获取用户昵称
+        nickname, _ = await self._get_user_info(user_id)
+
+        # 执行禁言
+        ban_duration = self._cfg_int("join_ban_confirm_duration", 2592000, group_id=group_id)
+        client = await self._get_client()
+        if not client:
+            logger.warning(f"[GroupMgr] 进群确认: 无法获取 client，跳过禁言")
+            return False
+
+        gid_int = self._safe_int(group_id, 0)
+        uid_int = self._safe_int(user_id, 0)
+        if not gid_int or not uid_int:
+            logger.warning(f"[GroupMgr] 进群确认: 群号或用户号无效")
+            return False
+
+        try:
+            await client.call_action('set_group_ban', group_id=gid_int, user_id=uid_int, duration=ban_duration)
+            logger.info(f"[GroupMgr] 进群确认: 已禁言用户 {user_id}，时长 {ban_duration} 秒")
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 进群确认: 禁言失败 {e}")
+            return False
+
+        # 获取当前群公告阅读数
+        initial_read_num = await self._get_group_notice_read_num(group_id)
+        logger.info(f"[GroupMgr] 进群确认: 当前群公告阅读数={initial_read_num}")
+
+        # 获取群成员数
+        member_count = await self._get_group_member_count(group_id)
+        logger.info(f"[GroupMgr] 进群确认: 当前群成员数={member_count}")
+
+        # 发送提醒消息
+        message_template = self._cfg_str(
+            "join_ban_confirm_message",
+            "欢迎 {name} 加入本群！\n\n你是当前群里第 {member_count} 位成员！\n\n请阅读置顶群公告并点击「确认收到」按钮，禁言将自动解除。\n\n注意：未确认前将无法发送消息。",
+            group_id=group_id
+        )
+        # 替换变量，{at} 使用 CQ 码 @用户
+        message = message_template.replace("{at}", f"[CQ:at,qq={user_id}]").replace("{name}", nickname).replace("{uid}", user_id).replace("{group}", group_id).replace("{member_count}", str(member_count))
+
+        try:
+            result = await client.call_action("send_group_msg", group_id=gid_int, message=message)
+            result = self._extract_data_result(result)
+            msg_id = ""
+            if isinstance(result, dict):
+                msg_id = str(result.get("message_id", "") or result.get("id", ""))
+            logger.info(f"[GroupMgr] 进群确认: 已发送提醒消息 msg_id={msg_id}")
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 进群确认: 发送提醒消息失败 {e}")
+
+        # 保存确认记录，包含初始阅读数
+        self._storage.save_join_confirmation(group_id, user_id, nickname, msg_id, initial_read_num)
+        logger.info(f"[GroupMgr] 进群确认: 已保存确认记录 群={group_id} 用户={user_id} 初始阅读数={initial_read_num}")
+
+        return True
+
+    async def _get_group_notice_read_num(self, group_id: str) -> int:
+        """获取群公告的阅读数（取第一条公告的阅读数）"""
+        client = await self._get_client()
+        if not client:
+            return 0
+        
+        gid_int = self._safe_int(group_id, 0)
+        if not gid_int:
+            return 0
+        
+        try:
+            result = await client.call_action('_get_group_notice', group_id=gid_int)
+            result = self._extract_data_result(result)
+            # _extract_data_result 已提取 data 字段，结果可能是 list 或 dict
+            notices = result if isinstance(result, list) else (result.get('data') if isinstance(result, dict) else None)
+            if notices and len(notices) > 0:
+                # 取第一条公告的阅读数
+                read_num = notices[0].get('read_num', 0)
+                return self._safe_int(read_num, 0)
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 获取群公告阅读数失败: {e}")
+        
+        return 0
+
+    async def _get_group_member_count(self, group_id: str) -> int:
+        """获取群成员数量"""
+        client = await self._get_client()
+        if not client:
+            return 0
+        
+        gid_int = self._safe_int(group_id, 0)
+        if not gid_int:
+            return 0
+        
+        try:
+            result = await client.call_action('get_group_info', group_id=gid_int)
+            result = self._extract_data_result(result)
+            # 从 data 字段提取 member_count
+            if isinstance(result, dict):
+                member_count = result.get('member_count', 0)
+                return self._safe_int(member_count, 0)
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 获取群成员数量失败: {e}")
+        
+        return 0
+
+

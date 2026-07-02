@@ -91,6 +91,22 @@ class OneBotMixin:
                 pass
         return ""
 
+    def _try_get_sender_nickname(self, event: AstrMessageEvent) -> str:
+        """尝试从事件中获取发送者的昵称。"""
+        for getter in [
+            lambda: str(event.get_sender_name()) if hasattr(event, 'get_sender_name') and event.get_sender_name() else None,
+            lambda: str(event.sender.nickname) if hasattr(event, 'sender') and hasattr(event.sender, 'nickname') and event.sender.nickname else None,
+            lambda: str((getattr(event, 'raw_event', None) or {}).get('sender', {}).get('nickname')) or None,
+            lambda: str(event.message_obj.sender.nickname) if hasattr(event, 'message_obj') and hasattr(event.message_obj, 'sender') and hasattr(event.message_obj.sender, 'nickname') and event.message_obj.sender.nickname else None,
+        ]:
+            try:
+                result = getter()
+                if result and result != 'None':
+                    return result
+            except Exception:
+                pass
+        return ""
+
     def _get_all_admin_ids(self) -> set:
         # 合并插件管理员名单(DB) + AstrBot 全局 admin_id
         try:
@@ -282,8 +298,16 @@ class OneBotMixin:
 
     async def _check_admin_cfg_access(self, event: AstrMessageEvent, cfg_key: str, feature_name: str, need_admin: bool = True) -> Tuple[bool, str]:
         # 复合检查：管理员身份 → _cfg_check（插件/功能启用状态，按群）→ 群黑白名单，任一失败即拒绝。
-        if need_admin and not await self._is_admin(event):
-            return False, "仅管理员可以使用此功能"
+        # v2.5.0 新增：使用命令权限管理系统进行权限检查
+        if hasattr(self, '_permission_checker') and self._permission_checker:
+            # 使用新的权限检查中间件
+            perm_result = await self._permission_checker.check_permission(event, feature_name)
+            if not perm_result.allowed:
+                return False, perm_result.reason
+        else:
+            # 回退到旧的权限检查逻辑
+            if need_admin and not await self._is_admin(event):
+                return False, "仅管理员可以使用此功能"
         gid = self._get_group_id(event)
         ok, msg = self._cfg_check(cfg_key, feature_name, group_id=gid)
         if not ok:

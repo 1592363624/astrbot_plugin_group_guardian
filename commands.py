@@ -149,7 +149,7 @@ class CommandsMixin:
             return
         keyword = args[1]
         try:
-            ok, err, client, gid = await self._prepare_group_action(event, "member_list_enabled", "查看群成员")
+            ok, err, client, gid = await self._prepare_group_action(event, "member_list_enabled", "搜索成员")
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -183,7 +183,7 @@ class CommandsMixin:
 
     async def recall_last(self, event: AstrMessageEvent):
         '''撤回群内最新一条或多条消息'''
-        ok, err, client, gid = await self._prepare_group_action(event, "recall_enabled", "撤回消息")
+        ok, err, client, gid = await self._prepare_group_action(event, "recall_enabled", "撤回最新消息")
         if not ok:
             yield event.plain_result(err)
             return
@@ -429,7 +429,7 @@ class CommandsMixin:
     async def cmd_list_files(self, event: AstrMessageEvent):
         '''查看群文件列表'''
         try:
-            ok, err, client, gid = await self._prepare_group_action(event, "group_files_enabled", "群文件管理", need_admin=False)
+            ok, err, client, gid = await self._prepare_group_action(event, "group_files_enabled", "文件列表", need_admin=False)
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -464,7 +464,7 @@ class CommandsMixin:
             return
         try:
             file_id = str(args[1]).strip()
-            ok, err, client, gid = await self._prepare_group_action(event, "group_files_enabled", "群文件管理")
+            ok, err, client, gid = await self._prepare_group_action(event, "group_files_enabled", "删文件")
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -532,7 +532,7 @@ class CommandsMixin:
             yield event.plain_result("用法: /群名 <新群名>")
             return
         try:
-            ok, err, client, gid = await self._prepare_group_action(event, "set_group_name_enabled", "修改群名")
+            ok, err, client, gid = await self._prepare_group_action(event, "set_group_name_enabled", "群名")
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -554,7 +554,7 @@ class CommandsMixin:
         try:
             user_id = str(args[1]).strip()
             title = ' '.join(args[2:])
-            ok, err, client, gid, uid = await self._prepare_group_member_action(event, "set_title_enabled", "设置头衔", user_id)
+            ok, err, client, gid, uid = await self._prepare_group_member_action(event, "set_title_enabled", "头衔", user_id)
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -574,7 +574,7 @@ class CommandsMixin:
             yield event.plain_result("用法: /设精华 <message_id>\n回复消息或提供 message_id")
             return
         try:
-            ok, err, client, msg_id = await self._prepare_message_action(event, "essence_enabled", "精华消息", args[1])
+            ok, err, client, msg_id = await self._prepare_message_action(event, "essence_enabled", "设精华", args[1])
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -594,7 +594,7 @@ class CommandsMixin:
             yield event.plain_result("用法: /取消精华 <message_id>")
             return
         try:
-            ok, err, client, msg_id = await self._prepare_message_action(event, "essence_enabled", "精华消息", args[1])
+            ok, err, client, msg_id = await self._prepare_message_action(event, "essence_enabled", "取消精华", args[1])
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -613,19 +613,12 @@ class CommandsMixin:
         if not group_id:
             yield event.plain_result("请在群内使用此命令")
             return
-        # 权限：仅"白名单群的群主"或"插件全局管理员"可设置/取消本群管理员。
-        # 设置管理员属于高敏感操作，普通群管不应能借此扩张管理层。
-        operator = self._try_get_sender_id(event)
-        is_plugin_admin = await self._is_plugin_admin(event)
-        if not is_plugin_admin:
-            # 必须是白名单群（未设白名单时不开放群主自助设管理，避免任意群群主滥用）
-            if not (self._group_white_set and group_id in self._group_white_set):
-                yield event.plain_result("此功能仅对白名单群开放，请联系插件管理员将本群加入白名单")
-                return
-            role = await self._get_member_role(event, group_id, operator)
-            if role != "owner":
-                yield event.plain_result("仅本群群主或插件管理员可以设置/取消群管理员")
-                return
+        # 权限校验完全交由 _prepare_group_member_action 中的权限系统处理（WebUI 配置生效）。
+        # 注意：设置/取消群管理员是 OneBot 高敏感操作，实际能否成功仍受平台限制：
+        #   - bot 必须是群主（_precheck_member_action 会预检）
+        #   - 不能对群主或其他管理员操作（_precheck_member_action 会预检）
+        # 因此即使 WebUI 将权限级别设为 ALL_MEMBERS，普通成员调用也会在 API 层失败，
+        # 不会造成实际提权。建议在 WebUI 中保持默认的 GROUP_OWNER 级别。
         # 目标：优先取 @，否则取文本里的 QQ 号
         at_targets = self._extract_at_targets(event)
         args = event.message_str.split()
@@ -651,7 +644,7 @@ class CommandsMixin:
                 yield event.plain_result("用法: /设置管理 @某人 [设置/取消]\n或: /设置管理 <QQ号> [设置/取消]\n示例: /设置管理 @张三 设置")
                 return
         try:
-            ok, err, client, gid, uid = await self._prepare_group_member_action(event, "set_admin_enabled", "设置管理员", user_id)
+            ok, err, client, gid, uid = await self._prepare_group_member_action(event, "set_admin_enabled", "设置管理", user_id)
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -676,7 +669,7 @@ class CommandsMixin:
             if method == -1:
                 yield event.plain_result("无效的方法，请选择: 需要验证/允许/禁止")
                 return
-            ok, err, client, gid = await self._prepare_group_action(event, "join_verify_enabled", "加群验证")
+            ok, err, client, gid = await self._prepare_group_action(event, "join_verify_enabled", "加群方式")
             if not ok:
                 yield event.plain_result(err)
                 return
@@ -749,7 +742,7 @@ class CommandsMixin:
 
     async def recall_all(self, event: AstrMessageEvent):
         '''批量撤回最近消息。用法: /批量撤回 [条数] 或 /批量撤回 @用户 [条数]'''
-        ok, err, client, gid = await self._prepare_group_action(event, "recall_enabled", "撤回消息")
+        ok, err, client, gid = await self._prepare_group_action(event, "recall_enabled", "批量撤回")
         if not ok:
             yield event.plain_result(err)
             return
@@ -866,12 +859,10 @@ class CommandsMixin:
         if not group_id:
             yield event.plain_result("请在群内使用此命令")
             return
-        # 仅群主或插件全局管理员可改本群授权策略（与 /移除群管权限 一致）。
-        # 不放给普通群管，避免被授权的群管反过来扩大或锁定授权范围。
-        operator = self._try_get_sender_id(event)
-        role = await self._get_member_role(event, group_id, operator)
-        if role != "owner" and not await self._is_plugin_admin(event):
-            yield event.plain_result("仅群主或插件管理员可以管理本群的群管理授权")
+        # 使用权限检查系统判断用户是否有权限执行此命令
+        perm_result = await self._permission_checker.check_permission(event, "群管理授权")
+        if not perm_result.allowed:
+            yield event.plain_result(perm_result.message or "权限不足，无法执行此命令")
             return
         args = event.message_str.split()
         if len(args) < 2:
@@ -904,10 +895,10 @@ class CommandsMixin:
         if not group_id:
             yield event.plain_result("请在群内使用此命令")
             return
-        operator = self._try_get_sender_id(event)
-        role = await self._get_member_role(event, group_id, operator)
-        if role != "owner" and not await self._is_plugin_admin(event):
-            yield event.plain_result("仅群主或插件管理员可以管理本群的群管权限")
+        # 使用权限检查系统判断用户是否有权限执行此命令
+        perm_result = await self._permission_checker.check_permission(event, "移除群管权限")
+        if not perm_result.allowed:
+            yield event.plain_result(perm_result.message or "权限不足，无法执行此命令")
             return
         args = event.message_str.split()
         if len(args) < 2:
