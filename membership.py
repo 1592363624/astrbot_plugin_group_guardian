@@ -487,12 +487,12 @@ class MembershipMixin:
         try:
             result = await client.call_action('_get_group_notice', group_id=gid_int)
             result = self._extract_data_result(result)
-            if isinstance(result, dict) and 'data' in result:
-                notices = result['data']
-                if notices and len(notices) > 0:
-                    # 取第一条公告的阅读数
-                    read_num = notices[0].get('read_num', 0)
-                    return self._safe_int(read_num, 0)
+            # _extract_data_result 已提取 data 字段，结果可能是 list 或 dict
+            notices = result if isinstance(result, list) else (result.get('data') if isinstance(result, dict) else None)
+            if notices and len(notices) > 0:
+                # 取第一条公告的阅读数
+                read_num = notices[0].get('read_num', 0)
+                return self._safe_int(read_num, 0)
         except Exception as e:
             logger.warning(f"[GroupMgr] 获取群公告阅读数失败: {e}")
         

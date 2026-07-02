@@ -30,13 +30,6 @@ from .utils import UtilitiesMixin
 from .web import WebMixin
 
 
-@register(
-    "astrbot_plugin_group_guardian",
-    "zhaisir",
-    "QQ群智能守护者",
-    PLUGIN_VERSION,
-    "https://github.com/1592363624/astrbot_plugin_group_guardian",
-)
 class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, SchedulerMixin, RemoteMixin, LlmToolsMixin, WebMixin, OneBotMixin, UtilitiesMixin, Star):
     """插件主类。所有 AstrBot 装饰器注册入口，业务逻辑委托给 mixin 模块。"""
 

@@ -702,47 +702,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
             <div class="list-items" id="blockList"><p class="empty">暂无</p></div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2>命令权限管理</h2><div class="header-actions"><button class="btn btn-ghost btn-sm" id="btnRefreshCmdPerms">刷新</button><button class="btn btn-outline btn-sm" id="btnExportCmdPerms">导出配置</button><button class="btn btn-outline btn-sm" id="btnImportCmdPerms">导入配置</button></div></div>
-          <div class="list-manage">
-            <p class="rules-subtle" style="margin-bottom:8px">配置各命令的访问权限。数值越小权限越高：0=插件管理员，1=群超管，2=群主，3=群管理员，4=所有成员。</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-              <select class="input-sm" id="cmdPermCategory" style="width:120px"><option value="">全部分类</option></select>
-              <select class="input-sm" id="cmdPermEnabled" style="width:100px"><option value="">全部状态</option><option value="1">已启用</option><option value="0">已禁用</option></select>
-              <input class="input-sm" id="cmdPermSearch" placeholder="搜索命令..." style="width:150px" />
-            </div>
-            <div class="rules-table-wrap" style="max-height:400px;overflow-y:auto">
-              <table class="log-table" id="cmdPermTable">
-                <thead><tr><th>命令</th><th>分类</th><th>权限级别</th><th>状态</th><th>允许群覆盖</th><th>操作</th></tr></thead>
-                <tbody id="cmdPermBody"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>群级别命令权限覆盖</h2></div>
-          <div class="list-manage">
-            <p class="rules-subtle" style="margin-bottom:8px">为特定群设置不同的命令权限。需先在上方配置中启用「允许群覆盖」。</p>
-            <div class="list-add-row">
-              <input class="input-sm" id="gcPermGroup" placeholder="群号" style="width:120px" />
-              <button class="btn btn-primary btn-sm" id="btnLoadGroupCmdPerms">加载该群配置</button>
-            </div>
-            <div id="groupCmdPermContainer" style="display:none">
-              <div class="rules-table-wrap" style="max-height:300px;overflow-y:auto;margin-top:8px">
-                <table class="log-table">
-                  <thead><tr><th>命令</th><th>权限级别</th><th>状态</th><th>操作</th></tr></thead>
-                  <tbody id="groupCmdPermBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>命令权限变更日志</h2></div>
-          <div class="log-container" style="max-height:300px;overflow-y:auto" id="cmdPermLogContainer">
-            <p class="empty">点击刷新加载日志</p>
-          </div>
-        </div>
       </div>
 
       <div class="tab-panel" id="tab-cmdlist">
@@ -1229,7 +1188,7 @@ function switchTab(tabName) {
   if (tabName === 'flood') loadFlood();
   if (tabName === 'rules') { renderRuleCenterShell(); loadRuleCenter(); }
   if (tabName === 'join') loadJoinRules();
-  if (tabName === 'perms') { loadSuperAdmins(); loadGrants(); loadBlocks(); loadCommandPermissions(); }
+  if (tabName === 'perms') { loadSuperAdmins(); loadGrants(); loadBlocks(); }
   if (tabName === 'cmdlist') { loadCmdList(); }
   if (tabName === 'groupcfg') loadGroupCfgGroups();
   if (tabName === 'tasks') { loadAppeals(); loadUnbans(); }
@@ -3225,180 +3184,6 @@ function renderGroupCfgItems(items) {
   });
 }
 
-// 命令权限管理
-var CMD_PERMS_CACHE = [];
-var CMD_PERM_LEVELS = {'-1': '未配置（需设置）', 0: '插件管理员', 1: '群超管', 2: '群主', 3: '群管理员', 4: '所有成员'};
-var CMD_PERM_CATEGORIES = ['审核管理', '群管理', '成员管理', '信息查询', '批量操作', '插件配置', '消息撤回', '其他'];
-
-async function loadCommandPermissions() {
-  var body = document.getElementById('cmdPermBody');
-  if (!body) return;
-  body.innerHTML = '<tr><td colspan="6" class="empty">加载中...</td></tr>';
-  var category = ($('#cmdPermCategory') || {}).value || '';
-  var enabled = ($('#cmdPermEnabled') || {}).value || '';
-  var params = {};
-  if (category) params.category = category;
-  if (enabled !== '') params.enabled = enabled;
-  var res = await safeGet('command_permissions', params);
-  if (isApiError(res)) { body.innerHTML = '<tr><td colspan="7" class="empty">加载失败：' + esc(res.message || '') + '</td></tr>'; return; }
-  CMD_PERMS_CACHE = res || [];
-  renderCommandPermissions(CMD_PERMS_CACHE);
-  // 更新分类下拉框
-  var catSelect = $('#cmdPermCategory');
-  if (catSelect && catSelect.options.length <= 1) {
-    CMD_PERM_CATEGORIES.forEach(function(c) {
-      var opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      catSelect.appendChild(opt);
-    });
-  }
-}
-
-function renderCommandPermissions(list) {
-  var body = document.getElementById('cmdPermBody');
-  if (!body) return;
-  if (!list.length) { body.innerHTML = '<tr><td colspan="6" class="empty">暂无命令权限配置</td></tr>'; return; }
-  body.innerHTML = list.map(function(p) {
-    return '<tr data-cmd="' + escAttr(p.command) + '">' +
-      '<td><strong>' + esc(p.command) + '</strong>' + (p.description ? '<br><span class="rules-subtle">' + esc(p.description) + '</span>' : '') + '</td>' +
-      '<td>' + esc(p.category) + '</td>' +
-      '<td><select class="input-sm cmd-perm-level" style="width:100px" data-cmd="' + escAttr(p.command) + '">' +
-        Object.keys(CMD_PERM_LEVELS).map(function(k) {
-          return '<option value="' + k + '"' + (p.permission_level == k ? ' selected' : '') + '>' + CMD_PERM_LEVELS[k] + '</option>';
-        }).join('') + '</select></td>' +
-      '<td>' + (p.enabled ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-default">禁用</span>') + '</td>' +
-      '<td>' + (p.allow_group_override ? '<span class="badge badge-success">允许</span>' : '<span class="badge badge-default">不允许</span>') + '</td>' +
-      '<td><button class="btn btn-primary btn-sm cmd-perm-save" data-cmd="' + escAttr(p.command) + '">保存</button> ' +
-        '<button class="btn btn-' + (p.enabled ? 'warning' : 'success') + ' btn-sm cmd-perm-toggle" data-cmd="' + escAttr(p.command) + '" data-enabled="' + p.enabled + '">' + (p.enabled ? '禁用' : '启用') + '</button></td></tr>';
-  }).join('');
-  // 绑定事件
-  $$('.cmd-perm-save', body).forEach(function(btn) {
-    btn.addEventListener('click', function() { saveCommandPermission(btn.dataset.cmd); });
-  });
-  $$('.cmd-perm-toggle', body).forEach(function(btn) {
-    btn.addEventListener('click', function() { toggleCommandPermission(btn.dataset.cmd, btn.dataset.enabled !== 'true'); });
-  });
-}
-
-function filterCommandPermissions() {
-  var search = (($('#cmdPermSearch') || {}).value || '').trim().toLowerCase();
-  if (!search) { renderCommandPermissions(CMD_PERMS_CACHE); return; }
-  var filtered = CMD_PERMS_CACHE.filter(function(p) {
-    return p.command.toLowerCase().indexOf(search) !== -1 || (p.description || '').toLowerCase().indexOf(search) !== -1;
-  });
-  renderCommandPermissions(filtered);
-}
-
-async function saveCommandPermission(command) {
-  var levelSelect = document.querySelector('.cmd-perm-level[data-cmd="' + command + '"]');
-  if (!levelSelect) return;
-  var perm = CMD_PERMS_CACHE.find(function(p) { return p.command === command; });
-  if (!perm) return;
-  var r = await safePost('command_permissions/save', {
-    command: command,
-    permission_level: parseInt(levelSelect.value),
-    enabled: perm.enabled,
-    description: perm.description,
-    category: perm.category,
-    allow_group_override: perm.allow_group_override
-  });
-  if (apiCallFailed(r)) { toast('保存失败: ' + apiErrMsg(r, ''), 'error'); return; }
-  toast('已保存 ' + command + ' 的权限配置', 'success');
-  loadCommandPermissions();
-}
-
-async function toggleCommandPermission(command, enabled) {
-  var perm = CMD_PERMS_CACHE.find(function(p) { return p.command === command; });
-  if (!perm) return;
-  var r = await safePost('command_permissions/save', {
-    command: command,
-    permission_level: perm.permission_level,
-    enabled: enabled,
-    description: perm.description,
-    category: perm.category,
-    allow_group_override: perm.allow_group_override
-  });
-  if (apiCallFailed(r)) { toast('操作失败: ' + apiErrMsg(r, ''), 'error'); return; }
-  toast('已' + (enabled ? '启用' : '禁用') + ' ' + command, 'success');
-  loadCommandPermissions();
-}
-
-async function exportCommandPermissions() {
-  var res = await safeGet('command_permissions/export');
-  if (isApiError(res)) { toast('导出失败: ' + (res.message || ''), 'error'); return; }
-  var blob = new Blob([JSON.stringify(res, null, 2)], { type: 'application/json' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = 'command_permissions_' + new Date().toISOString().slice(0, 10) + '.json';
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('配置已导出', 'success');
-}
-
-async function importCommandPermissions() {
-  var input = document.createElement('input');
-  input.type = 'file'; input.accept = '.json';
-  input.onchange = async function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    var text = await file.text();
-    var data;
-    try { data = JSON.parse(text); } catch(err) { toast('JSON 解析失败', 'error'); return; }
-    var ok = await confirmModal({ title: '导入命令权限配置', body: '是否覆盖已有配置？', okText: '覆盖导入', cancelText: '跳过已有' });
-    var r = await safePost('command_permissions/import', { data: data, overwrite: ok });
-    if (apiCallFailed(r)) { toast('导入失败: ' + apiErrMsg(r, ''), 'error'); return; }
-    var result = r || {};
-    toast('导入完成：导入 ' + (result.imported || 0) + ' 条，跳过 ' + (result.skipped || 0) + ' 条', 'success');
-    loadCommandPermissions();
-  };
-  input.click();
-}
-
-async function loadGroupCommandPermissions() {
-  var groupId = ($('#gcPermGroup') || {}).value.trim();
-  if (!groupId) { toast('请输入群号', 'error'); return; }
-  var container = document.getElementById('groupCmdPermContainer');
-  var body = document.getElementById('groupCmdPermBody');
-  if (!container || !body) return;
-  container.style.display = 'block';
-  body.innerHTML = '<tr><td colspan="4" class="empty">加载中...</td></tr>';
-  var res = await safeGet('command_permissions/group', { group_id: groupId });
-  if (isApiError(res)) { body.innerHTML = '<tr><td colspan="4" class="empty">加载失败：' + esc(res.message || '') + '</td></tr>'; return; }
-  var list = res || [];
-  if (!list.length) { body.innerHTML = '<tr><td colspan="4" class="empty">该群暂无命令权限覆盖配置</td></tr>'; return; }
-  body.innerHTML = list.map(function(p) {
-    return '<tr><td>' + esc(p.command) + '</td>' +
-      '<td><select class="input-sm group-cmd-perm-level" data-cmd="' + escAttr(p.command) + '">' +
-        Object.keys(CMD_PERM_LEVELS).map(function(k) {
-          return '<option value="' + k + '"' + (p.permission_level == k ? ' selected' : '') + '>' + CMD_PERM_LEVELS[k] + '</option>';
-        }).join('') + '</select></td>' +
-      '<td>' + (p.enabled ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-default">禁用</span>') + '</td>' +
-      '<td><button class="btn btn-primary btn-sm group-cmd-perm-save" data-cmd="' + escAttr(p.command) + '">保存</button> ' +
-        '<button class="btn btn-danger btn-sm group-cmd-perm-del" data-cmd="' + escAttr(p.command) + '">删除</button></td></tr>';
-  }).join('');
-  $$('.group-cmd-perm-save', body).forEach(function(btn) {
-    btn.addEventListener('click', async function() {
-      var cmd = btn.dataset.cmd;
-      var level = document.querySelector('.group-cmd-perm-level[data-cmd="' + cmd + '"]');
-      if (!level) return;
-      var r = await safePost('command_permissions/group/save', { group_id: groupId, command: cmd, permission_level: parseInt(level.value), enabled: true });
-      if (apiCallFailed(r)) { toast('保存失败', 'error'); return; }
-      toast('已保存', 'success');
-      loadGroupCommandPermissions();
-    });
-  });
-  $$('.group-cmd-perm-del', body).forEach(function(btn) {
-    btn.addEventListener('click', async function() {
-      var ok = await confirmModal({ title: '删除群级别覆盖', body: '确认删除群 <b>' + esc(groupId) + '</b> 对命令 <b>' + esc(btn.dataset.cmd) + '</b> 的权限覆盖？', okText: '删除', danger: true });
-      if (!ok) return;
-      var r = await safePost('command_permissions/group/delete', { group_id: groupId, command: btn.dataset.cmd });
-      if (apiCallFailed(r)) { toast('删除失败', 'error'); return; }
-      toast('已删除', 'success');
-      loadGroupCommandPermissions();
-    });
-  });
-}
-
 // 指令列表 Tab
 var CMD_LIST_CACHE = [];
 var CMD_LIST_LEVELS = {'-1': '未配置（需设置）', 0: '插件管理员', 1: '群超管', 2: '群主', 3: '群管理员', 4: '所有成员'};
@@ -3553,7 +3338,7 @@ async function loadCmdListLogs() {
   // 权限级别数值 → 可读名称（与后端 _perm_level_label 保持一致）
   var levelName = function(lv) {
     if (lv === null || lv === undefined || lv === '') return '未配置';
-    return CMD_PERM_LEVELS[lv] || ('级别' + lv);
+    return CMD_LIST_LEVELS[lv] || ('级别' + lv);
   };
   // 启用状态 → 可读文本
   var enabledText = function(en) {
@@ -3711,16 +3496,6 @@ async function init() {
     if (n) loadBlocks();
   });
   bindClick('btnRefreshTasks', function() { loadAppeals(); loadUnbans(); });
-  bindClick('btnRefreshCmdPerms', loadCommandPermissions);
-  bindClick('btnExportCmdPerms', exportCommandPermissions);
-  bindClick('btnImportCmdPerms', importCommandPermissions);
-  bindClick('btnLoadGroupCmdPerms', loadGroupCommandPermissions);
-  var cmdPermSearch = document.getElementById('cmdPermSearch');
-  if (cmdPermSearch) cmdPermSearch.addEventListener('input', filterCommandPermissions);
-  var cmdPermCategory = document.getElementById('cmdPermCategory');
-  if (cmdPermCategory) cmdPermCategory.addEventListener('change', loadCommandPermissions);
-  var cmdPermEnabled = document.getElementById('cmdPermEnabled');
-  if (cmdPermEnabled) cmdPermEnabled.addEventListener('change', loadCommandPermissions);
   bindClick('btnRefreshGroupCfg', loadGroupCfgGroups);
   bindClick('gcManualLoad', function() {
     var g = ($('#gcManualGroup').value || '').trim();
