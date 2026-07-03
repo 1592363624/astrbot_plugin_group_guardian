@@ -227,6 +227,42 @@
         "default": true,
         "hint": "关闭后群文件查看/上传/删除/移动/重命名等全部不可用"
     },
+    "group_honor_enabled": {
+        "description": "群荣誉查看功能开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后群荣誉查看 LLM 工具不可用"
+    },
+    "at_all_remain_enabled": {
+        "description": "@全体成员剩余次数查询开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后 @全体成员剩余次数查询 LLM 工具不可用"
+    },
+    "ignore_requests_enabled": {
+        "description": "被忽略加群请求查看开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后被忽略加群请求查看 LLM 工具不可用"
+    },
+    "group_msg_history_enabled": {
+        "description": "群消息历史查看开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后群消息历史查看 LLM 工具不可用"
+    },
+    "group_portrait_enabled": {
+        "description": "群头像设置功能开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后群头像设置 LLM 工具不可用"
+    },
+    "group_sign_enabled": {
+        "description": "群打卡功能开关",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后群打卡 LLM 工具不可用"
+    },
     "anti_flood_enabled": {
         "description": "防刷屏总开关",
         "type": "bool",
