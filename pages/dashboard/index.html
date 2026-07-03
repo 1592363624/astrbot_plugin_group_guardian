@@ -37,7 +37,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 .app{display:flex;height:100vh;overflow:hidden}
 .sidebar{width:220px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;flex-shrink:0;transition:width .3s}
 .sidebar-header{padding:20px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
-.logo-icon{width:32px;height:32px;border-radius:var(--radius);background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0}
+.logo-icon{width:32px;height:32px;border-radius:var(--radius);background:var(--primary);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex-shrink:0;position:relative;overflow:hidden}
+.logo-icon-letter{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.logo-icon-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:var(--radius)}
 .logo-text{display:flex;flex-direction:column;min-width:0}
 .logo-title{color:var(--text-primary);font-weight:600;font-size:13px;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .logo-ver{color:var(--text-muted);font-size:11px}
@@ -404,10 +406,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
   <div class="app">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="logo-icon">G</div>
+        <div class="logo-icon" id="logoIconWrap"><span class="logo-icon-letter">G</span><img class="logo-icon-img" id="logoAvatar" alt="" style="display:none" /></div>
         <div class="logo-text">
           <span class="logo-title">Group Guardian</span>
-          <span class="logo-ver" id="logoVer">v2.3.4</span>
+          <span class="logo-ver" id="logoVer">v...</span>
         </div>
       </div>
       <nav class="sidebar-nav">
@@ -1264,7 +1266,20 @@ async function loadOverview() {
     $('#statUserBlackCount').textContent = d.user_black_list_count != null ? d.user_black_list_count : '--';
     $('#statAdminCount').textContent = d.admin_list_count != null ? d.admin_list_count : '--';
     $('#statTotalLogs').textContent = d.total_logs != null ? d.total_logs : '--';
-    $('#logoVer').textContent = d.version || 'v2.3.4';
+    $('#logoVer').textContent = d.version || 'v...';
+    // 机器人头像：有 avatar URL 则显示图片，否则回退字母 G
+    var avatarImg = $('#logoAvatar');
+    var letterSpan = document.querySelector('.logo-icon-letter');
+    if (avatarImg && letterSpan) {
+      if (d.bot_avatar) {
+        avatarImg.onerror = function() { avatarImg.style.display='none'; letterSpan.style.display='flex'; };
+        avatarImg.onload = function() { avatarImg.style.display='block'; letterSpan.style.display='none'; };
+        avatarImg.src = d.bot_avatar;
+      } else {
+        avatarImg.style.display = 'none';
+        letterSpan.style.display = 'flex';
+      }
+    }
     var banner = $('#disclaimerBanner');
     if (banner) banner.style.display = d.disclaimer_agreed ? 'none' : 'block';
   }
