@@ -615,6 +615,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
             刷新
           </button>
         </div>
+        <div class="card">
+          <div class="card-header"><h2>防刷屏功能开关</h2><button class="btn btn-primary btn-sm" id="btnSaveFloodToggles">保存</button></div>
+          <div class="settings-list" id="floodToggles" style="padding:8px 16px"></div>
+        </div>
         <div class="stats-row" id="floodStatsRow">
           <div class="stat-card stat-info"><div class="stat-body"><div class="stat-value" id="floodEnabled">--</div><div class="stat-label">防刷屏状态</div></div></div>
           <div class="stat-card"><div class="stat-body"><div class="stat-value" id="floodTrackedGroups">--</div><div class="stat-label">追踪群数</div></div></div>
@@ -651,6 +655,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 
       <div class="tab-panel" id="tab-join">
         <div class="page-header"><h1>入群审核</h1><button class="btn btn-ghost btn-sm" id="btnRefreshJoin">刷新</button></div>
+        <div class="card">
+          <div class="card-header"><h2>入群功能开关</h2><button class="btn btn-primary btn-sm" id="btnSaveJoinToggles">保存</button></div>
+          <div class="settings-list" id="joinToggles" style="padding:8px 16px"></div>
+        </div>
         <div class="card">
           <div class="card-header"><h2>新增 / 编辑规则</h2></div>
           <div class="settings-list" style="padding:14px 16px">
@@ -720,6 +728,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
 
       <div class="tab-panel" id="tab-perms">
         <div class="page-header"><h1>权限管理</h1><button class="btn btn-ghost btn-sm" id="btnRefreshPerms">刷新</button></div>
+        <div class="card">
+          <div class="card-header"><h2>权限功能开关</h2><button class="btn btn-primary btn-sm" id="btnSavePermsToggles">保存</button></div>
+          <div class="settings-list" id="permsToggles" style="padding:8px 16px"></div>
+        </div>
         <div class="card">
           <div class="card-header"><h2>群超管</h2></div>
           <div class="list-manage">
@@ -833,6 +845,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
       <div class="tab-panel" id="tab-tasks">
         <div class="page-header"><h1>申诉 / 解禁</h1><button class="btn btn-ghost btn-sm" id="btnRefreshTasks">刷新</button></div>
         <div class="card">
+          <div class="card-header"><h2>申诉/解禁功能开关</h2><button class="btn btn-primary btn-sm" id="btnSaveAppealToggles">保存</button></div>
+          <div class="settings-list" id="appealToggles" style="padding:8px 16px"></div>
+        </div>
+        <div class="card">
           <div class="card-header"><h2>申诉记录</h2></div>
           <div class="log-container" id="appealList"><p class="empty">加载中...</p></div>
         </div>
@@ -894,7 +910,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
           <div class="card" data-settings-section="audit"><div class="card-header"><h2>审核设置</h2></div><div class="settings-list" id="settingsAudit"></div></div>
           <div class="card" data-settings-section="ocr"><div class="card-header"><h2>OCR识图设置</h2></div><div class="settings-list" id="settingsOcr"></div></div>
           <div class="card" data-settings-section="lexicon"><div class="card-header"><h2>词库设置</h2></div><div class="settings-list" id="settingsLexicon"></div></div>
-          <div class="card" data-settings-section="feature"><div class="card-header"><h2>功能开关</h2></div><div class="settings-list" id="settingsFeatures"></div></div>
+          <div class="card" data-settings-section="feature"><div class="card-header"><h2>功能总闸</h2></div><div class="settings-list" id="settingsFeatures"></div><p class="rules-subtle" style="padding:0 16px 12px">这些开关是各命令的总闸，与「指令列表」页的启用开关叠加生效（两者都开启才可用）；同时控制 LLM 工具与远程执行路径。</p></div>
           <div class="card card-full" data-settings-section="advanced"><div class="card-header"><h2>高级设置</h2></div><div class="settings-list" id="settingsExtra"></div></div>
           <div class="card card-full" data-settings-section="schema"><div class="card-header"><h2>全量配置（Schema）</h2></div><div class="settings-list" id="settingsAll"></div></div>
           <div class="card card-full" data-settings-section="list"><div class="card-header"><h2>名单管理</h2></div><div class="list-manage" id="settingsLists"></div></div>
@@ -1240,6 +1256,17 @@ function switchTab(tabName) {
   if (tabName === 'groupcfg') loadGroupCfgGroups();
   if (tabName === 'tasks') { loadAppeals(); loadUnbans(); }
   if (tabName === 'settings') loadSettings();
+  // 模块页 toggle 渲染：CONFIG 已加载则直接渲染，否则先 loadSettings（会渲染所有 toggle）
+  if (['join','flood','tasks','perms'].indexOf(tabName) >= 0) {
+    if (!CONFIG || !Object.keys(CONFIG).length) {
+      loadSettings();
+    } else {
+      renderToggles('joinToggles', JOIN_TOGGLES);
+      renderToggles('floodToggles', FLOOD_TOGGLES);
+      renderToggles('appealToggles', APPEAL_TOGGLES);
+      renderToggles('permsToggles', PERMS_TOGGLES);
+    }
+  }
 }
 
 function initTabs() {
@@ -1803,11 +1830,6 @@ var AUDIT_TOGGLES = [
   { key: 'prompt_injection_enabled', label: '群管提示词注入', desc: '向LLM追加本轮群管权限规则' },
   { key: 'scan_forward_msg', label: '合并转发审核', desc: '解析合并转发消息内容进行审核' },
   { key: 'recall_qq_favorite_enabled', label: 'QQ收藏撤回', desc: '检测到QQ收藏转发内容自动撤回' },
-  { key: 'anti_flood_enabled', label: '防刷屏', desc: '检测消息发送频率，超限自动禁言' },
-  { key: 'anti_flood_recall_enabled', label: '刷屏撤回', desc: '刷屏消息自动批量撤回' },
-  { key: 'anti_flood_night_enabled', label: '夜间限速', desc: '凌晨时段使用独立刷屏阈值' },
-  { key: 'repeat_detect_enabled', label: '重复消息检测', desc: '检测短时间内重复发送相同内容' },
-  { key: 'long_text_detect_enabled', label: '长文本检测', desc: '检测超长消息刷屏' },
 ];
 var OCR_TOGGLES = [
   { key: 'ocr_enabled', label: 'OCR识图审核', desc: '使用LLM视觉模型识别图片内容进行审核' },
@@ -1823,6 +1845,30 @@ var LEXICON_TOGGLES = [
   { key: 'lexicon_illegal_url_enabled', label: '违法网址' },
   { key: 'lexicon_other_enabled', label: '其他违规' },
 ];
+// 入群审核页开关
+var JOIN_TOGGLES = [
+  { key: 'join_verify_enabled', label: '加群验证', desc: '入群验证问题/关键词审核' },
+  { key: 'join_audit_enabled', label: '入群自动审核', desc: '自动处理加群申请（通过/拒绝/转人工）' },
+  { key: 'join_reject_use_lexicon', label: '入群词库过滤', desc: '加群申请命中词库时自动拒绝' },
+];
+// 刷屏监控页开关
+var FLOOD_TOGGLES = [
+  { key: 'anti_flood_enabled', label: '防刷屏', desc: '检测消息发送频率，超限自动禁言' },
+  { key: 'anti_flood_recall_enabled', label: '刷屏撤回', desc: '刷屏消息自动批量撤回' },
+  { key: 'anti_flood_night_enabled', label: '夜间限速', desc: '凌晨时段使用独立刷屏阈值' },
+  { key: 'repeat_detect_enabled', label: '重复消息检测', desc: '检测短时间内重复发送相同内容' },
+  { key: 'long_text_detect_enabled', label: '长文本检测', desc: '检测超长消息刷屏' },
+];
+// 申诉/解禁页开关
+var APPEAL_TOGGLES = [
+  { key: 'appeal_enabled', label: '刷屏申诉模式', desc: '允许用户通过指令申诉解禁' },
+  { key: 'auto_unban_enabled', label: '定时自动解禁', desc: '到时间自动解除禁言' },
+];
+// 权限管理页开关
+var PERMS_TOGGLES = [
+  { key: 'group_admin_grant_enabled', label: '群管理员动态授权', desc: '群主/群管自动获得插件管理权限' },
+  { key: 'legacy_role_admin_enabled', label: '兼容群管授权', desc: '兼容旧版群管授权机制' },
+];
 var FEATURE_TOGGLES = [
   { key: 'ban_enabled', label: '禁言功能' },
   { key: 'unban_enabled', label: '解禁功能' },
@@ -1834,7 +1880,6 @@ var FEATURE_TOGGLES = [
   { key: 'set_title_enabled', label: '设置头衔' },
   { key: 'member_list_enabled', label: '成员列表' },
   { key: 'banned_list_enabled', label: '禁言列表' },
-  { key: 'join_verify_enabled', label: '加群验证' },
   { key: 'essence_enabled', label: '精华消息' },
   { key: 'group_files_enabled', label: '群文件管理' },
   { key: 'set_group_name_enabled', label: '修改群名' },
@@ -1843,12 +1888,6 @@ var FEATURE_TOGGLES = [
   { key: 'list_announcements_enabled', label: '查看公告' },
   { key: 'word_count_enabled', label: '字数统计' },
   { key: 'group_stats_enabled', label: '群统计' },
-  { key: 'join_audit_enabled', label: '入群自动审核' },
-  { key: 'join_reject_use_lexicon', label: '入群词库过滤' },
-  { key: 'appeal_enabled', label: '刷屏申诉模式' },
-  { key: 'auto_unban_enabled', label: '定时自动解禁' },
-  { key: 'group_admin_grant_enabled', label: '群管理员动态授权' },
-  { key: 'legacy_role_admin_enabled', label: '兼容群管授权' },
 ];
 var RULES_STATE = { category: 'swear', q: '', enabled: '', page: 1, pageSize: 20 };
 var KEYWORDS_STATE = { category: '', q: '', page: 1, pageSize: 50 };
@@ -2006,6 +2045,10 @@ async function loadSettings() {
   renderToggles('settingsOcr', OCR_TOGGLES);
   renderToggles('settingsLexicon', LEXICON_TOGGLES);
   renderToggles('settingsFeatures', FEATURE_TOGGLES);
+  renderToggles('joinToggles', JOIN_TOGGLES);
+  renderToggles('floodToggles', FLOOD_TOGGLES);
+  renderToggles('appealToggles', APPEAL_TOGGLES);
+  renderToggles('permsToggles', PERMS_TOGGLES);
   renderListSettings();
   renderAllSettings();
   await loadProviderList(true);
@@ -3534,6 +3577,10 @@ async function init() {
   bindClick('btnRefreshUsers', loadUsers);
   bindClick('btnRefreshLogs', loadLogs);
   bindClick('btnSaveSettings', saveSettings);
+  bindClick('btnSaveJoinToggles', saveSettings);
+  bindClick('btnSaveFloodToggles', saveSettings);
+  bindClick('btnSaveAppealToggles', saveSettings);
+  bindClick('btnSavePermsToggles', saveSettings);
   bindClick('btnRefreshJoin', loadJoinRules);
   bindClick('btnSaveJoinRule', saveJoinRule);
   bindClick('btnSaveJoinConfirmConfig', saveJoinConfirmConfig);
