@@ -345,8 +345,21 @@ class WebMixin:
             self._rule_count_cache = rc
         swear_count = rc["swear"]
         ad_count = rc["ad"]
+        # 获取当前登录机器人 QQ 号与头像 URL（无在线 bot 时返回 0/空串）
+        bot_qq = 0
+        bot_avatar = ""
+        try:
+            client = await self._get_client()
+            if client:
+                bot_qq = await self._get_bot_uin(client)
+                if bot_qq:
+                    bot_avatar = f"https://q.qlogo.cn/headimg_dl?dst_uin={bot_qq}&spec=640"
+        except Exception as e:
+            logger.debug(f"[GroupMgr] /stats 获取 bot 信息失败: {e}")
         stats = {
             "plugin_name": PLUGIN_NAME,
+            "bot_qq": bot_qq,
+            "bot_avatar": bot_avatar,
             "version": PLUGIN_VERSION,
             "disclaimer_agreed": self.config.get("disclaimer_agreed", False),
             "auto_moderate_enabled": self.auto_moderate_enabled,
