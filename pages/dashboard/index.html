@@ -676,7 +676,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
         <div class="card">
           <div class="card-header"><h2>进群确认功能</h2></div>
           <div class="settings-list" style="padding:14px 16px">
-            <p class="rules-subtle" style="margin-bottom:10px">新成员进群后自动禁言，要求阅读群公告并确认后才能发言。需在「设置 → 功能开关」开启「进群确认公告功能」。</p>
+            <p class="rules-subtle" style="margin-bottom:10px">新成员进群后自动禁言，要求阅读群公告并确认后才能发言。在下方开启「启用进群确认」即可。</p>
             
             <!-- 功能开关 -->
             <div class="setting-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
@@ -1957,6 +1957,11 @@ var MANUAL_SETTING_KEYS = {
   auto_unban_enabled: true,
   group_admin_grant_enabled: true,
   legacy_role_admin_enabled: true,
+  join_ban_confirm_enabled: true,
+  join_ban_confirm_duration: true,
+  join_ban_confirm_message: true,
+  join_ban_confirm_check_interval: true,
+  join_ban_confirm_check_timeout: true,
   moderation_ban_duration: true,
   moderation_llm_provider_id: true,
   ban_notice: true,
