@@ -477,6 +477,9 @@ class MembershipMixin:
         self._storage.save_join_confirmation(group_id, user_id, nickname, msg_id, initial_read_num)
         logger.info(f"[GroupMgr] 进群确认: 已保存确认记录 群={group_id} 用户={user_id} 初始阅读数={initial_read_num}")
 
+        # 启动进群确认检查任务（事件驱动：有人进群时启动，全部确认后自动停止）
+        self._start_join_confirm_check()
+
         return True
 
     async def _get_group_notice_read_num(self, group_id: str) -> int:

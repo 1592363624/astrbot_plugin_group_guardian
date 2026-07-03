@@ -101,6 +101,13 @@ class Main(ModerationMixin, AntiFloodMixin, AppealMixin, MembershipMixin, Schedu
         # 后台调度器（F3 定时解禁 + F2 申诉超时清理）
         self._init_scheduler()
         self._start_scheduler()
+        # 兜底：热重载后若有遗留的 pending 进群确认记录，启动检查任务
+        try:
+            if self._storage.list_pending_confirmations():
+                self._start_join_confirm_check()
+                logger.info("[GroupMgr] 检测到遗留待确认记录，已启动进群确认检查任务")
+        except Exception as e:
+            logger.warning(f"[GroupMgr] 检查遗留待确认记录失败: {e}")
         # 待审入群请求存储：{群号:消息ID: {user_id, flag, sub_type, comment, nickname, timestamp}}
         # 用于管理员引用回复待审通知消息时快速查找对应的加群申请信息
         # v2.4.5 起：从 DB 回填，避免机器人重启后内存清空导致引用回复审核失效
