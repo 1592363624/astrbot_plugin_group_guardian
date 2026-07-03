@@ -23,7 +23,7 @@ def _load_version_from_metadata() -> str:
                 line = line.strip()
                 # 匹配 "version: v1.2.3" 行（兼容带/不带引号）
                 if line.startswith("version:"):
-                    val = line.split(":", 1)[1].strip().strip('"').strip("'")
+                    val = line.split(":", 1)[1].split("#", 1)[0].strip().strip('"').strip("'")
                     if val:
                         return val
         logger.warning("[GroupMgr] metadata.yaml 未找到 version 字段，回退 v0.0.0")
