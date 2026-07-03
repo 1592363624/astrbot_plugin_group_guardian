@@ -1864,6 +1864,30 @@ class SQLiteStorage:
             for r in rows
         ]
 
+    def timeout_pending_confirmations(self, timeout_seconds: int) -> int:
+        """将超过 timeout_seconds 未确认的 pending 记录标记为 timeout。
+
+        用于事件驱动检查任务的超时清理：用户进群后长时间未确认公告时，
+        将其记录从 pending 改为 timeout，检查任务不再处理该记录，
+        用户保持禁言状态由管理员手动处理。
+
+        Args:
+            timeout_seconds: 超时阈值（秒），从 banned_at 起计算
+
+        Returns:
+            被标记为 timeout 的记录数
+        """
+        now = int(time.time())
+        cutoff = now - timeout_seconds
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE join_confirmations SET status='timeout' "
+                "WHERE status='pending' AND banned_at < ?",
+                (cutoff,)
+            )
+            conn.commit()
+        return cur.rowcount
+
     def delete_join_confirmation(self, group_id: str, user_id: str) -> bool:
         """删除进群确认记录"""
         with self._connect() as conn:
