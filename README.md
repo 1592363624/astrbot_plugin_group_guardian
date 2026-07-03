@@ -1,6 +1,5 @@
 # QQ群智能守护者 (GroupGuardian)
 
-![version](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/zcj-ui/astrbot_plugin_group_guardian/main/version.json&query=version&label=version&color=2563eb)
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?logo=python&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![astrbot](https://img.shields.io/badge/astrbot-%3E%3D4.24.2-cf6e34)
