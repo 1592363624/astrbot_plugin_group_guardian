@@ -1004,6 +1004,11 @@ function esc(s) {
 function escAttr(s) {
   return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// 将文本安全嵌入 HTML placeholder 属性（换行转 &#10; 兼容多行 placeholder 显示）
+// 用途：textarea/input 的 placeholder 需要展示多行默认文案时使用
+function toPlaceholderAttr(text) {
+  return escAttr(text).replace(/\n/g, '&#10;');
+}
 
 function cssAttr(s) {
   var v = (s === null || s === undefined) ? '' : String(s);
@@ -2719,7 +2724,7 @@ function renderExtraSettings() {
     '<h3 style="font-size:13px;font-weight:600;margin-bottom:12px">申诉 / 解禁设置</h3>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉窗口（分钟）</div><div class="setting-desc">刷屏处罚后允许用户私聊申诉的时间</div></div><input type="number" class="input-sm" id="inputAppealWindow" value="' + appealWindow + '" min="1" max="10080" style="width:100px" /></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉上下文条数</div><div class="setting-desc">LLM 复核申诉时读取的最近群消息数量</div></div><input type="number" class="input-sm" id="inputAppealContext" value="' + appealContext + '" min="1" max="500" style="width:100px" /></div>' +
-    '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉@公示模板</div><div class="setting-desc">支持变量：{name} 昵称、{minutes} 申诉窗口分钟数</div></div><textarea class="input-md" id="inputAppealTemplate" rows="2" style="width:100%;max-width:420px">' + esc(appealTemplate) + '</textarea></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">申诉@公示模板</div><div class="setting-desc">支持变量：{name} 昵称、{minutes} 申诉窗口分钟数。留空使用下方 placeholder 所示默认文案</div></div><textarea class="input-md" id="inputAppealTemplate" rows="3" style="width:100%;max-width:420px" placeholder="' + toPlaceholderAttr('留空时使用默认文案：\n{name} 你被判定为刷屏并已处理。若有异议，请在 {minutes} 分钟内私聊我说明原因，我会复核。') + '">' + esc(appealTemplate) + '</textarea></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">自动解禁扫描间隔（秒）</div><div class="setting-desc">后台任务扫描到期解禁计划的间隔</div></div><input type="number" class="input-sm" id="inputUnbanInterval" value="' + unbanInterval + '" min="10" max="3600" style="width:100px" /></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">永久禁言托管时长（小时）</div><div class="setting-desc">插件发起永久禁言时登记的兜底解禁时长</div></div><input type="number" class="input-sm" id="inputUnbanPermanentHours" value="' + unbanPermanentHours + '" min="1" max="8760" style="width:100px" /></div>' +
     '<hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">' +
@@ -2797,6 +2802,35 @@ function renderOcrSettings() {
     return '<option value="' + escAttr(t.value) + '"' + sel + '>' + esc(t.label) + '</option>';
   }).join('');
 
+  // OCR 模板默认提示词镜像（与后端 moderation.py::_OCR_PROMPT_TEMPLATES 保持同步）
+  // 用途：在自定义提示词 textarea 的 placeholder 中展示当前选中模板的默认文案，
+  // 让用户在不翻代码的情况下了解"留空时实际生效的提示词"。
+  var OCR_TEMPLATE_DEFAULTS = {
+    'default': {
+      system: '你是一个图片内容识别助手。请仔细观察图片，用文字详细描述图片中的所有内容。如果图片中有文字，请完整转录所有文字内容。如果图片是广告、推广、违规内容，请特别说明。只输出图片内容描述，不要输出其他内容。',
+      prompt: '请识别并描述这张图片的内容，特别注意图片中的文字。'
+    },
+    'strict': {
+      system: '你是一个严格的内容审核图片识别助手。你的任务是识别图片中是否存在违规内容。请仔细检查：1.图片中是否有广告推广信息（联系方式、二维码、引流链接）2.是否有色情或低俗内容 3.是否有政治敏感内容 4.是否有暴恐或违法信息 5.是否有赌博或诈骗信息。如果图片中有文字，请完整转录。最后给出明确结论：该图片是否包含违规内容。',
+      prompt: '请严格审核这张图片，识别并描述所有可能违规的内容，完整转录图片中的文字。'
+    },
+    'text_only': {
+      system: '你是一个OCR文字识别助手。请将图片中的所有文字完整转录出来，保持原始格式和排版。如果图片中没有文字，请回复「图片中无文字」。只输出识别到的文字内容，不要添加任何分析或评论。',
+      prompt: '请将这张图片中的所有文字完整转录出来。'
+    }
+  };
+  // 根据当前选中的模板更新两个自定义提示词 textarea 的 placeholder
+  function updateOcrPromptPlaceholders() {
+    var sel = document.getElementById('inputOcrTemplate');
+    var sysEl = document.getElementById('inputOcrSystemPrompt');
+    var usrEl = document.getElementById('inputOcrUserPrompt');
+    if (!sel || !sysEl || !usrEl) return;
+    var key = sel.value || 'default';
+    var tmpl = OCR_TEMPLATE_DEFAULTS[key] || OCR_TEMPLATE_DEFAULTS['default'];
+    sysEl.setAttribute('placeholder', '留空使用当前模板的默认系统提示词：\n' + tmpl.system);
+    usrEl.setAttribute('placeholder', '留空使用当前模板的默认用户提示词：\n' + tmpl.prompt);
+  }
+
   var ocrExtraId = 'ocrExtraFields';
   var existing = document.getElementById(ocrExtraId);
   if (existing) existing.remove();
@@ -2806,9 +2840,15 @@ function renderOcrSettings() {
   extraDiv.innerHTML =
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">OCR 视觉模型</div><div class="setting-desc">选择用于识图的LLM Provider，需支持图片理解（如GPT-4o、Gemini Pro Vision）</div></div><select class="input-sm" id="inputOcrProviderId" style="width:220px">' + providerOptions + '</select></div>' +
     '<div class="setting-item"><div class="setting-info"><div class="setting-label">OCR 提示词模板</div><div class="setting-desc">选择内置提示词模板，自定义提示词时此项无效</div></div><select class="input-sm" id="inputOcrTemplate" style="width:300px">' + templateOptions + '</select></div>' +
-    '<div class="setting-item"><div class="setting-info"><div class="setting-label">自定义系统提示词</div><div class="setting-desc">留空使用模板；填写后覆盖模板（需同时填写用户提示词）</div></div><textarea class="input-md" id="inputOcrSystemPrompt" rows="2" style="width:100%;max-width:400px" placeholder="留空使用模板提示词...">' + esc(ocrSystemPrompt) + '</textarea></div>' +
-    '<div class="setting-item"><div class="setting-info"><div class="setting-label">自定义用户提示词</div><div class="setting-desc">留空使用模板；填写后覆盖模板（需同时填写系统提示词）</div></div><textarea class="input-md" id="inputOcrUserPrompt" rows="2" style="width:100%;max-width:400px" placeholder="留空使用模板提示词...">' + esc(ocrUserPrompt) + '</textarea></div>';
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">自定义系统提示词</div><div class="setting-desc">留空使用模板；填写后覆盖模板（需同时填写用户提示词）。下方 placeholder 展示当前模板的默认文案</div></div><textarea class="input-md" id="inputOcrSystemPrompt" rows="3" style="width:100%;max-width:400px" placeholder="">' + esc(ocrSystemPrompt) + '</textarea></div>' +
+    '<div class="setting-item"><div class="setting-info"><div class="setting-label">自定义用户提示词</div><div class="setting-desc">留空使用模板；填写后覆盖模板（需同时填写系统提示词）。下方 placeholder 展示当前模板的默认文案</div></div><textarea class="input-md" id="inputOcrUserPrompt" rows="3" style="width:100%;max-width:400px" placeholder="">' + esc(ocrUserPrompt) + '</textarea></div>';
   c.appendChild(extraDiv);
+  // 初始化 placeholder 为当前模板的默认文案，并绑定模板下拉变更事件联动更新
+  updateOcrPromptPlaceholders();
+  var ocrTemplateSelect = document.getElementById('inputOcrTemplate');
+  if (ocrTemplateSelect) {
+    ocrTemplateSelect.addEventListener('change', updateOcrPromptPlaceholders);
+  }
 }
 
 async function saveSettings() {
