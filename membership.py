@@ -295,19 +295,19 @@ class MembershipMixin:
         group_id = self._get_group_id(event)
         if not group_id:
             return False
-        # 检查操作者是否为管理员
-        if not await self._is_admin(event):
-            logger.debug(f"[GroupMgr] 入群审核回复: 操作者非管理员，跳过")
-            return False
-        # 获取被回复消息的 ID
+        # 先获取被回复消息的 ID：绝大多数普通聊天消息在此即返回，避免无谓的管理员查询
         reply_msg_id = self._get_reply_message_id(event)
         if not reply_msg_id:
             return False
-        # 检查是否为待审通知消息
+        # 检查是否为待审通知消息：引用其他普通消息也在此返回，不输出日志噪音
         pending_key = f"{group_id}:{reply_msg_id}"
         pending_info = self._pending_join_requests.get(pending_key)
         if not pending_info:
             logger.debug(f"[GroupMgr] 入群审核回复: 未找到待审请求 {pending_key}（可能已处理或重启前未持久化）")
+            return False
+        # 确认是针对待审通知的回复后再校验操作者权限：此时非管理员才输出诊断日志
+        if not await self._is_admin(event):
+            logger.debug(f"[GroupMgr] 入群审核回复: 操作者非管理员，跳过")
             return False
         # 获取回复内容：只取 text 段，避免 @机器人 前缀导致关键字命中失败
         reply_text = self._extract_plain_text(event)
