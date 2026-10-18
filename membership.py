@@ -12,6 +12,7 @@
 import asyncio
 import json
 import re as _re
+import time
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
@@ -502,7 +503,63 @@ class MembershipMixin:
         resolved["enabled"] = bool(resolved.get("enabled", True))
         return resolved
 
+    # 同一加群申请（flag）在该时间内重复上报时只处理一次（Issue #94：协议端重复推送
+    # request 事件时，插件会重复调用审核接口并在群里发两条相同的审核通知）。
+    JOIN_REQUEST_DEDUP_SECONDS = 120.0
+
+    @staticmethod
+    def _join_keyword_hit(keyword, answer_lower: str) -> bool:
+        """入群关键词匹配。
+
+        默认为「包含」匹配；以 = 开头的词为「精确」匹配，要求去掉首尾空白后的整条答案
+        与之相等（不区分大小写）。例如 =1 只拦截答案恰好是「1」的敷衍申请，
+        不会误伤「赛博朋克2077」「纪元1800」这类正常答案（Issue #94）。
+        """
+        kw = str(keyword or "").strip().lower()
+        if not kw:
+            return False
+        if kw.startswith("="):
+            exact = kw[1:].strip()
+            return bool(exact) and answer_lower.strip() == exact
+        return kw in answer_lower
+
+    def _join_request_seen(self, flag: str) -> bool:
+        """登记 flag；已在去重窗口内处理过则返回 True。"""
+        seen = getattr(self, "_join_request_seen_flags", None)
+        if seen is None:
+            seen = self._join_request_seen_flags = {}
+        now = time.time()
+        if len(seen) > 500:
+            for key in [k for k, ts in seen.items() if now - ts >= self.JOIN_REQUEST_DEDUP_SECONDS]:
+                seen.pop(key, None)
+        last = seen.get(flag)
+        if last is not None and now - last < self.JOIN_REQUEST_DEDUP_SECONDS:
+            return True
+        seen[flag] = now
+        return False
+
+    def _forget_join_request(self, flag: str) -> None:
+        """申请未被自动处理（转人工/处理失败）时撤销登记，允许协议端重推后再次审核。"""
+        seen = getattr(self, "_join_request_seen_flags", None)
+        if seen:
+            seen.pop(flag, None)
+
     async def _handle_group_request(self, event: AstrMessageEvent) -> bool:
+        """加群申请审核主流程。返回 True 表示已处理（应 stop_event），False 表示未介入。"""
+        raw = self._get_raw_event(event)
+        flag = str(raw.get("flag", "") or "") if isinstance(raw, dict) else ""
+        if flag and self._join_request_seen(flag):
+            logger.info(f"[GroupMgr] 忽略重复上报的加群申请 flag={flag}")
+            return True
+        handled = False
+        try:
+            handled = await self._handle_group_request_once(event)
+        finally:
+            if flag and not handled:
+                self._forget_join_request(flag)
+        return handled
+
+    async def _handle_group_request_once(self, event: AstrMessageEvent) -> bool:
         """加群申请审核主流程。返回 True 表示已处理（应 stop_event），False 表示未介入。"""
         if not self.config.get("disclaimer_agreed", False):
             return False
@@ -535,8 +592,32 @@ class MembershipMixin:
         question = self._extract_join_question(comment)
         answer_lower = answer.lower()
 
+        accept_hit = next(
+            (kw for kw in rule.get("accept_keywords", [])
+             if self._join_keyword_hit(kw, answer_lower)),
+            None,
+        )
+        accept_overrides_lexicon = self._cfg(
+            "join_accept_overrides_lexicon", True, group_id=group_id
+        )
+        # Issue #94：开启「通过词优先」时，精确命中（= 开头）的通过词优先于拒绝词——
+        # 答案与管理员指定的标准答案完全一致，不应再被拒绝词里的短词（如 1、0）误拒。
+        # 包含匹配的通过词不享有此优先：否则在拒绝内容后附带一个通过词即可绕过拒绝词。
+        # 单独查找精确词，不受通过词列表顺序影响。
+        exact_hit = next(
+            (kw for kw in rule.get("accept_keywords", [])
+             if str(kw or "").strip().startswith("=")
+             and self._join_keyword_hit(kw, answer_lower)),
+            None,
+        )
+        if exact_hit and accept_overrides_lexicon:
+            return await self._complete_group_request(
+                event, flag, sub_type, True, "",
+                group_id, user_id, comment, f"命中通过词: {exact_hit}",
+            )
+
         for kw in rule.get("reject_keywords", []):
-            if kw and str(kw).lower() in answer_lower:
+            if self._join_keyword_hit(kw, answer_lower):
                 reason = rule.get("reject_reason", "") or "申请信息命中拒绝规则"
                 return await self._complete_group_request(
                     event, flag, sub_type, False, reason,
@@ -545,14 +626,6 @@ class MembershipMixin:
 
         # 通过词优先于通用词库/广告初筛，避免诸如“抖音”这类业务允许词被广告规则误拒。
         # 显式 reject_keywords 已在上面先行处理，因此不会被通过词覆盖。
-        accept_hit = next(
-            (kw for kw in rule.get("accept_keywords", [])
-             if kw and str(kw).lower() in answer_lower),
-            None,
-        )
-        accept_overrides_lexicon = self._cfg(
-            "join_accept_overrides_lexicon", True, group_id=group_id
-        )
         if accept_hit and accept_overrides_lexicon:
             return await self._complete_group_request(
                 event, flag, sub_type, True, "",

@@ -670,8 +670,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","P
                 <span class="toggle"><input type="checkbox" id="jrEnabled" checked /><span class="slider"></span></span></label>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-              <label style="flex:1;min-width:200px;font-size:12px;color:var(--text-secondary)">通过关键词（逗号/换行分隔）<br><textarea class="input-md" id="jrAccept" style="min-height:60px"></textarea></label>
-              <label style="flex:1;min-width:200px;font-size:12px;color:var(--text-secondary)">拒绝关键词<br><textarea class="input-md" id="jrReject" style="min-height:60px"></textarea></label>
+              <label style="flex:1;min-width:200px;font-size:12px;color:var(--text-secondary)">通过关键词（逗号/换行分隔；= 开头为精确匹配，如 =原神）<br><textarea class="input-md" id="jrAccept" style="min-height:60px"></textarea></label>
+              <label style="flex:1;min-width:200px;font-size:12px;color:var(--text-secondary)">拒绝关键词（默认包含匹配；=1 只拒绝答案恰好为「1」）<br><textarea class="input-md" id="jrReject" style="min-height:60px"></textarea></label>
             </div>
             <label style="display:block;margin-top:10px;font-size:12px;color:var(--text-secondary)">拒绝理由<br><input class="input-md" id="jrReason" /></label>
             <div style="margin-top:12px"><button class="btn btn-primary btn-sm" id="btnSaveJoinRule">保存规则</button></div>
@@ -2542,6 +2542,12 @@ var FEATURE_TOGGLES = [
   { key: 'legacy_role_admin_enabled', label: '兼容群管授权' },
 ];
 var RULES_STATE = { category: 'swear', q: '', enabled: '', page: 1, pageSize: 20 };
+// Issue #95：勾选本页全选后可进一步「选中全部 N 条」，批量操作按当前筛选条件跨分页执行。
+var RULES_ALL_MATCHING = false;
+var RULES_TOTAL = 0;
+// 点「选中全部」时冻结的筛选条件与条数：批量请求只按这份快照执行，
+// 避免选中后又切换筛选、列表尚未刷新时按新条件删除了与确认框不同的规则。
+var RULES_ALL_SNAPSHOT = null;
 var KEYWORDS_STATE = { category: '', q: '', page: 1, pageSize: 50 };
 var LOGS_STATE = { page: 1, pageSize: 50 };
 
@@ -2858,6 +2864,8 @@ async function loadRebuildStatus() {
 }
 
 async function loadRules() {
+  RULES_ALL_MATCHING = false;
+  RULES_ALL_SNAPSHOT = null;
   var epoch = beginLoad('rules');
   if (!isCurrentLoad('rules', epoch)) return;
   var res = await safeGet('rules', {
@@ -2873,6 +2881,9 @@ async function loadRules() {
   if (!res || isApiError(res) || typeof res !== 'object' || !Array.isArray(res.items)) { wrap.innerHTML = '<div class="empty">' + esc(payloadFailure(res, '规则')) + '</div>'; return; }
   var items = res.items;
   var total = res.total || 0;
+  RULES_ALL_MATCHING = false;
+  RULES_ALL_SNAPSHOT = null;
+  RULES_TOTAL = total;
   // 删除/筛选后总页数变少时回到最后一页，否则会停在越界页显示空表（与 loadLogs 一致）
   var rulesTotalPages = Math.max(1, Math.ceil(total / RULES_STATE.pageSize));
   if (RULES_STATE.page > rulesTotalPages) {
@@ -2894,6 +2905,7 @@ async function loadRules() {
       + '</tr>';
   }).join('');
   wrap.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--text-muted);margin-bottom:6px"><span>共 ' + total + ' 条规则</span><div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm" id="btnRulesBatchEnable">批量启用</button><button class="btn btn-ghost btn-sm" id="btnRulesBatchDisable">批量禁用</button><button class="btn btn-danger btn-sm" id="btnRulesBatchDelete">批量删除</button></div></div>'
+    + '<div id="rulesSelectAllBar" style="display:none;font-size:12px;padding:6px 10px;margin-bottom:6px;border-radius:6px;background:var(--primary-light);color:var(--text-secondary)"></div>'
     + '<table class="log-table"><thead><tr><th><input type="checkbox" id="rulesCheckAll" /></th><th>分类</th><th>规则</th><th>备注</th><th>状态</th><th>操作</th></tr></thead><tbody>'
     + (rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px">暂无规则</td></tr>')
     + '</tbody></table>'
@@ -2902,6 +2914,33 @@ async function loadRules() {
   if (checkAll) {
     checkAll.addEventListener('change', function() {
       $$('[data-rule-id]', wrap).forEach(function(inp) { inp.checked = checkAll.checked; });
+      RULES_ALL_MATCHING = false;
+      renderRulesSelectAllBar(items.length);
+    });
+  }
+  $$('[data-rule-id]', wrap).forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      if (!inp.checked) {
+        RULES_ALL_MATCHING = false;
+        if (checkAll) checkAll.checked = false;
+      }
+      renderRulesSelectAllBar(items.length);
+    });
+  });
+  var selectAllBar = $('#rulesSelectAllBar');
+  if (selectAllBar) {
+    selectAllBar.addEventListener('click', function(e) {
+      var act = e.target && e.target.getAttribute && e.target.getAttribute('data-select-all');
+      if (!act) return;
+      RULES_ALL_MATCHING = act === 'all';
+      RULES_ALL_SNAPSHOT = RULES_ALL_MATCHING
+        ? { category: RULES_STATE.category, enabled: RULES_STATE.enabled, q: RULES_STATE.q, total: RULES_TOTAL }
+        : null;
+      if (!RULES_ALL_MATCHING) {
+        $$('[data-rule-id]', wrap).forEach(function(inp) { inp.checked = false; });
+        if (checkAll) checkAll.checked = false;
+      }
+      renderRulesSelectAllBar(items.length);
     });
   }
   $$('[data-act]', wrap).forEach(function(btn) {
@@ -2934,6 +2973,26 @@ async function loadRules() {
   bindPager(wrap);
 }
 
+function renderRulesSelectAllBar(pageCount) {
+  var bar = $('#rulesSelectAllBar');
+  if (!bar) return;
+  var checked = $$('[data-rule-id]:checked').length;
+  var pageAll = pageCount > 0 && checked === pageCount;
+  if (!pageAll || RULES_TOTAL <= pageCount) { bar.style.display = 'none'; RULES_ALL_MATCHING = false; RULES_ALL_SNAPSHOT = null; return; }
+  bar.style.display = '';
+  bar.innerHTML = RULES_ALL_MATCHING
+    ? '已选中当前筛选条件下的全部 <b>' + RULES_TOTAL + '</b> 条规则。 <a href="javascript:void(0)" data-select-all="clear">清除选择</a>'
+    : '已选中本页 ' + checked + ' 条。 <a href="javascript:void(0)" data-select-all="all">选中当前筛选条件下的全部 ' + RULES_TOTAL + ' 条</a>';
+}
+
+function ruleBatchPayload(ids) {
+  var snap = RULES_ALL_MATCHING ? RULES_ALL_SNAPSHOT : null;
+  if (snap) {
+    return { ids: [], category: snap.category, all_matching: true, filter_enabled: snap.enabled, q: snap.q };
+  }
+  return { ids: ids, category: RULES_STATE.category };
+}
+
 function selectedRuleIds() {
   return $$('[data-rule-id]:checked').map(function(inp) { return parseInt(inp.getAttribute('data-rule-id'), 10) || 0; }).filter(Boolean);
 }
@@ -2950,7 +3009,13 @@ function bindRuleBatchActions(wrap) {
 async function batchToggleRules(enabled) {
   var ids = selectedRuleIds();
   if (!ids.length) { toast('请先选择规则', 'info'); return; }
-  var res = await safePost('rules/toggle_batch', { ids: ids, category: RULES_STATE.category, enabled: enabled });
+  var body = ruleBatchPayload(ids);
+  body.enabled = enabled;
+  if (RULES_ALL_MATCHING && RULES_ALL_SNAPSHOT) {
+    var okAll = await confirmModal({ title: enabled ? '批量启用' : '批量禁用', body: '将' + (enabled ? '启用' : '禁用') + '当前筛选条件下的全部 <b>' + RULES_ALL_SNAPSHOT.total + '</b> 条规则，确认继续？', okText: enabled ? '全部启用' : '全部禁用' });
+    if (!okAll) return;
+  }
+  var res = await safePost('rules/toggle_batch', body);
   if (!res || isApiError(res)) { toast('批量更新失败: ' + ((res && res.message) || ''), 'error'); return; }
   toast(enabled ? '已批量启用' : '已批量禁用', 'success');
   loadRules();
@@ -2960,7 +3025,10 @@ async function batchToggleRules(enabled) {
 async function deleteSelectedRules() {
   var ids = selectedRuleIds();
   if (!ids.length) { toast('请先选择规则', 'info'); return; }
-  var res = await safePost('rules/delete_batch', { ids: ids, category: RULES_STATE.category });
+  var count = (RULES_ALL_MATCHING && RULES_ALL_SNAPSHOT) ? RULES_ALL_SNAPSHOT.total : ids.length;
+  var okDel = await confirmModal({ title: '批量删除规则', body: '确认删除 <b>' + count + '</b> 条规则？删除后不可恢复；只想停用请用「批量禁用」。', okText: '删除', danger: true });
+  if (!okDel) return;
+  var res = await safePost('rules/delete_batch', ruleBatchPayload(ids));
   if (!res || isApiError(res)) { toast('批量删除失败: ' + ((res && res.message) || ''), 'error'); return; }
   toast('已批量删除规则', 'success');
   loadRules();

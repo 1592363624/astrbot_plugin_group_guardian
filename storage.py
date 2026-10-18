@@ -476,13 +476,61 @@ class SQLiteStorage(ModerationReviewStorageMixin, GroupStorageMixin):
             conn.commit()
         return bool(cur.rowcount)
 
-    def delete_moderation_rules(self, rule_ids: Iterable[int]) -> int:
+    def delete_moderation_rules(self, rule_ids: Iterable[int], category: str = "") -> int:
+        # category 非空时只删除该分类下的 ID：调用方随后只重建这个分类的匹配器，
+        # 跨分类的 ID 若被删掉会让另一分类的内存匹配器与数据库不一致。
         ids = self._positive_ints(rule_ids)
         if not ids:
             return 0
         placeholders = ",".join("?" for _ in ids)
+        sql = f"DELETE FROM moderation_rules WHERE id IN ({placeholders})"
+        params: List[object] = list(ids)
+        if category:
+            sql += " AND category=?"
+            params.append(category)
         with self._connect() as conn:
-            cur = conn.execute(f"DELETE FROM moderation_rules WHERE id IN ({placeholders})", ids)
+            cur = conn.execute(sql, params)
+            conn.commit()
+        return int(cur.rowcount or 0)
+
+    @staticmethod
+    def _rule_filter_sql(category: str, enabled: Optional[int], query: str):
+        """与 list/count_moderation_rules(_filtered) 相同的筛选条件，供按筛选批量操作复用。"""
+        sql = " WHERE category=?"
+        params: List[object] = [category]
+        if enabled in (0, 1):
+            sql += " AND enabled=?"
+            params.append(enabled)
+        if query:
+            sql += " AND (pattern LIKE ? OR description LIKE ?)"
+            like = f"%{query}%"
+            params.extend([like, like])
+        return sql, params
+
+    def toggle_moderation_rules_filtered(
+        self, category: str, enabled_filter: Optional[int], query: str, enabled: bool
+    ) -> int:
+        """把当前筛选条件下的全部规则（跨分页）设为启用/禁用。category 必填。"""
+        if not category:
+            return 0
+        where, params = self._rule_filter_sql(category, enabled_filter, query)
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE moderation_rules SET enabled=?" + where,
+                [1 if enabled else 0, *params],
+            )
+            conn.commit()
+        return int(cur.rowcount or 0)
+
+    def delete_moderation_rules_filtered(
+        self, category: str, enabled_filter: Optional[int], query: str
+    ) -> int:
+        """删除当前筛选条件下的全部规则（跨分页）。category 必填。"""
+        if not category:
+            return 0
+        where, params = self._rule_filter_sql(category, enabled_filter, query)
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM moderation_rules" + where, params)
             conn.commit()
         return int(cur.rowcount or 0)
 
@@ -512,17 +560,18 @@ class SQLiteStorage(ModerationReviewStorageMixin, GroupStorageMixin):
             conn.commit()
         return bool(cur.rowcount)
 
-    def toggle_moderation_rules(self, rule_ids: Iterable[int], enabled: bool) -> int:
+    def toggle_moderation_rules(self, rule_ids: Iterable[int], enabled: bool, category: str = "") -> int:
         ids = self._positive_ints(rule_ids)
         if not ids:
             return 0
         placeholders = ",".join("?" for _ in ids)
-        params = [1 if enabled else 0, *ids]
+        sql = f"UPDATE moderation_rules SET enabled=? WHERE id IN ({placeholders})"
+        params: List[object] = [1 if enabled else 0, *ids]
+        if category:
+            sql += " AND category=?"
+            params.append(category)
         with self._connect() as conn:
-            cur = conn.execute(
-                f"UPDATE moderation_rules SET enabled=? WHERE id IN ({placeholders})",
-                params,
-            )
+            cur = conn.execute(sql, params)
             conn.commit()
         return int(cur.rowcount or 0)
 

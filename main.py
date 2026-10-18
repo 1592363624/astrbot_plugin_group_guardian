@@ -709,6 +709,22 @@ class Main(ModerationMixin, ModerationReviewMixin, AntiFloodMixin, AppealMixin, 
         except Exception as e:
             logger.warning(f"[GroupMgr] 管理员变动处理出错: {e}")
 
+    # Issue #93：成员被解除禁言（OneBot group_ban 通知，sub_type=lift_ban）时清除处罚冷却，
+    # 管理员提前解禁后该成员再违规可按正常流程处罚。广播型通知，不 stop_event。
+    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    async def _on_group_ban_lift(self, event: AiocqhttpMessageEvent):
+        raw = self._get_raw_event(event)
+        if not (isinstance(raw, dict)
+                and raw.get("post_type") == "notice"
+                and raw.get("notice_type") == "group_ban"
+                and raw.get("sub_type") == "lift_ban"):
+            return
+        try:
+            self._on_member_unbanned(raw.get("group_id"), raw.get("user_id"))
+        except Exception as e:
+            logger.debug(f"[GroupMgr] 解禁通知处理出错: {e}")
+
     # F2 私聊申诉裁决：私聊消息且发送者有 waiting 申诉时进入。
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)

@@ -879,6 +879,10 @@ class OneBotMixin:
                     f"[GroupMgr] 解禁失败({group_id}/{user_id}): {error}"
                 )
                 return False
+            # 定时解禁/申诉通过等插件内解禁：协议端不一定为自己的操作推送 lift_ban 通知
+            on_unbanned = getattr(self, "_on_member_unbanned", None)
+            if callable(on_unbanned):
+                on_unbanned(group_id, user_id)
             return True
         except Exception as e:
             logger.warning(f"[GroupMgr] 解禁失败({group_id}/{user_id}): {e}")

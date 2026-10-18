@@ -1296,7 +1296,14 @@ class WebMixin:
             category = str(data.get("category", "")).strip().lower()
             if category not in ("swear", "ad") or not isinstance(ids, list):
                 return jsonify({"status": "error", "message": "缺少分类或 IDs 无效"})
-            deleted = self._storage.delete_moderation_rules(ids)
+            filtered = self._rule_batch_filter(data)
+            if filtered is not None:
+                # Issue #95：按当前筛选条件跨分页批量删除
+                deleted = await self._run_in_thread(
+                    self._storage.delete_moderation_rules_filtered, category, *filtered
+                )
+            else:
+                deleted = self._storage.delete_moderation_rules(ids, category)
             if deleted <= 0:
                 return jsonify({"status": "error", "message": "未删除任何规则"})
             rebuilt, rebuild_err = self._apply_incremental_rule_rebuild(category)
@@ -1304,6 +1311,16 @@ class WebMixin:
         except Exception as e:
             logger.exception("[GroupMgr] 批量删除规则失败")
             return jsonify({"status": "error", "message": str(e)})
+
+    @staticmethod
+    def _rule_batch_filter(data: dict):
+        """批量操作请求带 all_matching=true 时，返回 (enabled 筛选, 搜索词)；否则 None（按 ids 操作）。"""
+        if str(data.get("all_matching", "")).strip().lower() not in ("1", "true", "yes"):
+            return None
+        enabled_raw = str(data.get("filter_enabled", "")).strip().lower()
+        enabled_filter = int(enabled_raw) if enabled_raw in ("0", "1") else None
+        query = str(data.get("q", "") or "").strip()
+        return enabled_filter, query
 
     async def _web_toggle_rule(self):
         try:
@@ -1332,7 +1349,14 @@ class WebMixin:
             enabled = self._parse_bool(data.get("enabled", True), True)
             if category not in ("swear", "ad") or not isinstance(ids, list):
                 return jsonify({"status": "error", "message": "缺少分类或 IDs 无效"})
-            changed = self._storage.toggle_moderation_rules(ids, enabled)
+            filtered = self._rule_batch_filter(data)
+            if filtered is not None:
+                # Issue #95：按当前筛选条件跨分页批量启停
+                changed = await self._run_in_thread(
+                    self._storage.toggle_moderation_rules_filtered, category, *filtered, enabled
+                )
+            else:
+                changed = self._storage.toggle_moderation_rules(ids, enabled, category)
             if changed <= 0:
                 return jsonify({"status": "error", "message": "未更新任何规则"})
             rebuilt, rebuild_err = self._apply_incremental_rule_rebuild(category)

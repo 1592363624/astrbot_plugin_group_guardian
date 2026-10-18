@@ -379,6 +379,22 @@ class ModerationMixin(ImageAuditMixin, ModerationContextMixin):
         if not users:
             store.pop(group_id, None)
 
+    def _on_member_unbanned(self, group_id, user_id) -> None:
+        """成员被解除禁言（管理员手动解禁、定时解禁、申诉通过等）后立即清除处罚冷却，
+        使其后续违规按正常流程处罚（Issue #93）。
+
+        冷却仍按禁言时长登记而不缩短：LLM 审核结论可能在消息发出后数分钟才返回，
+        冷却过短会让迟到的结论重复禁言，或用较短时长覆盖更长的禁言。
+        """
+        gid = str(group_id or "")
+        uid = str(user_id or "")
+        if not gid or not uid:
+            return
+        self._clear_moderation_penalty(gid, uid)
+        clear_flood = getattr(self, "_clear_anti_flood_penalty", None)
+        if callable(clear_flood):
+            clear_flood(gid, uid)
+
     async def _anti_flood_guard(self, event, group_id: str) -> Tuple[bool, str]:
         """防刷屏检测入口。记录时间戳，超限后禁言并可选撤回。
 
@@ -434,6 +450,7 @@ class ModerationMixin(ImageAuditMixin, ModerationContextMixin):
         # 否则 await 期间其它积压消息的协程会先跑完检测、造成重复处罚。
         # 冷却时长取禁言时长与一个最小值的较大者。仅撤回模式没有禁言时长，
         # 使用固定 30 秒吸收积压事件；撤回阈值是消息条数，不能拿来当秒数。
+        # 管理员提前解禁时由 _on_member_unbanned 清除冷却（Issue #93）。
         cooldown = max(mute_dur, 30) if mute_dur > 0 else 30
         self._mark_anti_flood_penalty(group_id, user_id, cooldown)
         try:

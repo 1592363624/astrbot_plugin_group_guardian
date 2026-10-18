@@ -62,6 +62,9 @@ class LlmToolsMixin:
             if not ok:
                 yield event.plain_result(f"解除禁言失败: {err}")
                 return
+            on_unbanned = getattr(self, "_on_member_unbanned", None)
+            if callable(on_unbanned):
+                on_unbanned(gid, uid)
             yield event.plain_result(f"已解除 {user_id} 的禁言")
         except Exception as e:
             yield event.plain_result(f"解除禁言失败: {e}")
